@@ -1,4 +1,4 @@
-﻿## IQMap - Instant Query Mapper
+# IQMap - Instant Query Mapper #
 
 2/1/12
 
@@ -7,7 +7,6 @@ it seeks to combine the elegance and simplicty of Dapper, with some advanced fea
 data management. It was written from scratch and does not actually share any code with Dapper, 
 though I have borrowed some tests.
 
-Basi
 
 IQMap features:
 
@@ -70,88 +69,83 @@ Basic behavior:
 
 Unlike Dapper it is not a single file that you can add to your project, but the code's a lot easier to read.
 
-IQMap exposes a static object IQ with the following properties/methods:
+IQMap encapsulates its database interface methods into two objects implementing an interface called `IDataController` 
+to expose its basic functionality. An `IDataController` also has a depenency of an `IDataStorageController` that
+provides low-level access to a data service's query methods. 
 
-    // Default connection object
-    IDbConnection Connection                      
+The included implementation `SqlDataController` should work with any roughly-ANSI SQL server. For non-MSSQL server
+databases, though, you may need to override the included `MSSQLDataStorageController` class. This has only a few methods,
+but they do important things like: 
 
-	// Configuration data
-	IQMap.Config Config                           
+* Returning the new ID for an inserted record
+* Implementing FirstRow and LastRow for selecting ranges (note: at this moment in time -- those aren't implemented for MSSQL either,
+  but that should be done very shortly)
+
+These are not standardized, e.g. MySQL uses a LIMIT clause for row ranges. But they are extraordinarily useful, 
+and so this core funcionality has been abstracted to make it easy to support other server types. It should be 
+trivial to override the MSSQL implementation for most anything else.
+
+If you wanted to support a totally non-sql data mechanism, well, you could easily write an `IDataController` that worked
+with any query language.
+
+These methods are offered by the `IDataController` class. Then, various forms are available as extensions of `IDataReader`, 
+`IDataRecord`, and `IDbConnection`, as well as methods of the static `IQ` object.
+
+    // Returns a new implementation-specific connection
+    IDbConnection GetConnection(string connectionString);
+
+    // Save an object by primary key value, return true if anything was done (e.g. non-dirty save returns false).
+    bool Save(IDbConnection connection, object obj);
+
+    // Select by primary key, and return new instance of T
+    T LoadPK<T>(IDbConnection connection, IConvertible primaryKeyValue) where T : new();
+
+    // Run an arbitrary query and map to object or value type T
+    T Load<T>(IDbConnection connection, string query, params object[] parameters);
+        
+    // "try" versions of above
+    bool TryLoad<T>(IDbConnection connection, string query, out T obj, params object[] parameters);
+    bool TryLoadPK<T>(IDbConnection connection, IConvertible primaryKeyValue, out T obj) where T : new();
+
+    // Return one instance of type or value T for each query result. If buffered=true, entire result set will
+    // be loaded into memory. Be cautious when using this method without buffering.
+    IEnumerable<T> LoadMultiple<T>(IDbConnection connection, string query, bool buffered, params object[] parameters);
+
+    int DeletePK<T>(IDbConnection connection, IConvertible primaryKeyValue) where T : new();
+    int Delete<T>(IDbConnection connection, string query, params object[] parameters);
+
+    IDataReader Query(IDbConnection connection, string query, params object[] parameters);
+    int QueryScalar(IDbConnection connection, string query, params object[] parameters);
+
+
+`IDataReader` extensions: These are designed to be chanied from a `Query` above but will, of course, work with
+any IDataReader.
+
+    // Map the first row of the reader to a new T and dispose the reader
+    T MapFirst<T>(this IDataReader reader)
+    
+    // Map the first row of the reader to obj and dispose the reader. Returns false if no data.
+    bool MapFirst(this IDataReader reader, object obj)
+
+    // Get the next item from the datareader. (This is same as MapFirst when called with closeDataReader=true).
+    T MapNext<T>(this IDataReader reader, bool closeDataReader=true) 
+    
+    // Map the next item from the datareader into obj and return the reader. Therefore, this can be chained to process
+    // multiple rows.
+    IDataReader MapNext(this IDataReader reader, object obj)
+
+    // Map a record (the current row of a datareader, e.g.) to a new T.
+    T Map<T>(this IDataRecord record)
+
+	// Map a record to an existing object
+	void Map(this IDataRecord reader,object obj)
 	
-	// Save an object using a primary key
-	bool Save(object obj)
-	
-	// Create a new instance of class T, loading data for primary key  
-    T LoadPK<T>(IConvertible primaryKeyValue)      
-	T Load<T>(string query, params object[] parameters) 
-	
-	bool TryLoad<T>(string query, out T obj, params object[] parameters)
-	bool TryLoadPK<T>(IConvertible primaryKeyValue, out T obj)
+	// Map each row of a datareader to new T objects/value types. If buffered=true, all data is loaded up front and
+	// the reader is closed. Otherwise, the reader won't be closed until the client finishes enumeration (be careful).
+	IEnumerable<T> MapAll<T>(this IDataReader reader, bool buffered=true) 
 
-	// Load all matching records into new objects or value types
-	IEnumerable<T> LoadMultiple<T>(string query, params object[] parameters)
-	
-	// Delete by primary key, return records affected
-	int Delete<T>(IConvertible primaryKeyValue)
 
-	// Delete any records matching 
-	int Delete<T>(string query, params object[] parameters)
-        {
-            return Config.DataController.Delete<T>(IQ.Config.DefaultConnection, query, parameters);
-        }
-        public static int QueryScalar(string query, params object[] parameters)
-        {
-            return Config.DataController.QueryScalar(IQ.Config.DefaultConnection, query, parameters);
-        }
-
-        public static IDataReader Query(string query, params object[] parameters)
-        {
-            return Config.DataController.Query(IQ.Config.DefaultConnection, query, parameters);
-        }
-
-        public static IDBClassInfo GetClassInfo<T>()
-        {
-            return GetClassInfo(typeof(T));
-        }
-        public static IDBClassInfo GetClassInfo(Type type)
-        {
-            return DBObjectData.GetClassInfo(type);
-        }
-        public static IDBObjectData DBData(object obj)
-        {
-            IDBObjectData dbData;
-            if (ObjectMetadata.TryGetValue(obj, out dbData))
-            {
-                if (ReferenceEquals(dbData.Owner, obj))
-                {
-                    return dbData;
-                }
-            }
-            // Not found - must check everything in the DB since GetHashCode isn't guaranteeed to be unique or to stay the same
-            // There are probably ways to optimize this, in fact, it may not even be necessary, but it should be pretty
-            // inexpensive unless dealing with huge numbers of objects
-
-            foreach (KeyValuePair<object, IDBObjectData> kvps in ObjectMetadata)
-            {
-                if (ReferenceEquals(kvps.Value.Owner, obj))
-                {
-                    return kvps.Value;
-                }
-                else if (kvps.Value.Orphaned)
-                {
-                    RemoveFromDict(kvps.Key);
-                }
-            }
-
-            // Definitely not in the dictionary - create it
-
-            IDBObjectData newObjectData = new DBObjectData(obj);
-            ObjectMetadata[obj] = newObjectData;
-            return newObjectData;
-
-        }
-
-* ATTRIBUTES *
+*ATTRIBUTES*
 
 IQMetaData - applies to a class.
 

@@ -173,6 +173,7 @@ namespace IQMap
             {
                 yield return Map<T>(reader);
             }
+            reader.Dispose();
         }
         #region private methods
 
@@ -210,7 +211,7 @@ namespace IQMap
         /// <param name="value"></param>
         /// <param name="conversionType"></param>
         /// <returns></returns>
-        public static object ChangeType(object value, Type conversionType)
+        private static object ChangeType(object value, Type conversionType)
         {
             if (conversionType.IsGenericType &&
                 conversionType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
