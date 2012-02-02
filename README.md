@@ -28,43 +28,42 @@ Basic behavior:
 
     // Pass just "where" criteria for most queries when using objects with metadata
 	
-	var someObject = IQ.Load<SomeObject>("DataField=12");
-	var someObject = IQ.Load<SomeObject>("DataField=@value",12);
-	IEnumerable<SomeObject>= IQ.LoadMany<SomeObject>("DataField > @value",12);
-	IQ.Save(someObject);
+    var someObject = IQ.Load<SomeObject>("DataField=12");
+    var someObject = IQ.Load<SomeObject>("DataField=@value",12);
+    IEnumerable<SomeObject>= IQ.LoadMany<SomeObject>("DataField > @value",12);
+    IQ.Save(someObject);
 
-	// Can be used on any objects -- generic "Query" on a connection returns a datareader.
+    // Can be used on any objects -- generic "Query" on a connection returns a datareader.
 
-	Cat cat1;
-	Cat cat2;
+    Cat cat1;
+    Cat cat2;
     connection.Query("select * FROM animals")
 		.MapNext(cat1)
 		.MapNext(cat2)
 		.Dispose();
 	
-	// Can be used with value types
+    // Can be used with value types
 
-	IEnumerable<int> kittenIDs = IQ.Query("select kittenID from kittens where catId=@catID",cat1.catID)
-	    .MapAll<int>();
+    IEnumerable<int> kittenIDs = IQ.Query("select kittenID from kittens where catId=@catID",cat1.catID)
+        .MapAll<int>();
 
-	// DataReaders are closed automatically except for chained methods, when using DataReader extension methods.
+    // DataReaders are closed automatically except for chained methods, when using DataReader extension methods.
 
-	IEnumerable<Cat> cats = IQ.Query("select * FROM animals where type='cat'")
-		.MapAll<Cat>();
+    IEnumerable<Cat> cats = IQ.Query("select * FROM animals where type='cat'")
+        .MapAll<Cat>();
 
-	Cat firstCat = IQ.Query("select * FROM animals where type='cat'")
-		.MapFirst<Cat>();
-
+    Cat firstCat = IQ.Query("select * FROM animals where type='cat'")
+        .MapFirst<Cat>();
 
     // Pass parameters by index
     IQ.Delete<SomeObject>("Obsolete=@obsolete and DestroyDate<@today",isObsolete,DateTime.Now);
 
-	// Pass parameters by name
+    // Pass parameters by name
     IQ.Delete<SomeObject>("Obsolete=@obsolete and DestroyDate<@today","@today",DateTime.Now,"@obsolete",isObsolete);
 
-	// Dapper style - use objects
+    // Dapper style - use objects
     IQ.Delete<SomeObject>("Obsolete=@obsolete and DestroyDate<@today",new {today = DateTime.Now,obsolete=isObsolete});
-	IQ.Delete<SomeObject>("Obsolete=@obsolete and DestroyDate<@today",new {today = DateTime.Now,obsolete=isObsolete});
+    IQ.Delete<SomeObject>("Obsolete=@obsolete and DestroyDate<@today",new {today = DateTime.Now,obsolete=isObsolete});
 
 
 Unlike Dapper it is not a single file that you can add to your project, but the code's a lot easier to read.
