@@ -163,12 +163,19 @@ namespace IQMap
 
             // Definitely not in the dictionary - create it
 
+
+            return CreateDBData(obj);
+        }
+        public static IDBObjectData CreateDBData(object obj)
+        {
+            if (obj is IDictionary<string, object>)
+            {
+                return null;
+            }
             IDBObjectData newObjectData = new DBObjectData(obj);
             ObjectMetadata[obj] = newObjectData;
             return newObjectData;
-
         }
-
         #endregion 
 
        

@@ -82,19 +82,20 @@ namespace IQMap
         /// <returns></returns>
         public static T Map<T>(this IDataRecord reader)
         {
-            T obj;
-            if (typeof(T)==typeof(string) || typeof(T).IsValueType)
+            T obj = Utils.GetInstanceOf<T>();
+
+            if (Utils.IsValuelikeType<T>())
             {
                 obj = (T)ChangeType(reader[0], typeof(T));
             }
             else
             {
-                obj = Activator.CreateInstance<T>();
                 Map(reader, obj);
             }
             
             return obj;
         }
+        
         /// <summary>
         /// Map to a data record.
         /// </summary>
@@ -102,7 +103,8 @@ namespace IQMap
         /// <param name="obj"></param>
         public static void Map(this IDataRecord reader,object obj)
         {
-            if (obj.GetType().IsValueType)
+            Type t = Utils.GetUnderlyingType(obj.GetType());
+            if (t.IsValueType || t == typeof(string))
             {
                 throw new Exception("You can't map to a value type. You can, however, return new value types using Map<T>. Try that instead.");
             }

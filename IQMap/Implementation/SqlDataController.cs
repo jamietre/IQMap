@@ -90,7 +90,7 @@ namespace IQMap.Implementation
         public T LoadPK<T>(IDbConnection connection, IConvertible primaryKeyValue) where T : new()
         {
             T obj = new T();
-            string pkName=IQ.DBData(obj).ClassInfo.PrimaryKey.Name;
+            string pkName=IQ.CreateDBData(obj).ClassInfo.PrimaryKey.Name;
 
             string error = LoadSingleInto<T>(connection,obj, pkName+"="+"@"+pkName,"@"+pkName,primaryKeyValue);
            
@@ -110,6 +110,7 @@ namespace IQMap.Implementation
         public T Load<T>(IDbConnection connection, string query, params object[] parameters)
         {
             T obj = Utils.GetInstanceOf<T>();
+            
             string error;
 
             IQuery q = new SqlQueryRaw(query, parameters);
@@ -191,7 +192,7 @@ namespace IQMap.Implementation
         public bool TryLoadPK<T>(IDbConnection connection, IConvertible primaryKeyValue, out T obj) where T : new()
         {
             T target = new T();
-            string error = LoadSingleInto<T>(connection,target, IQ.DBData(target).ClassInfo.PrimaryKey.Name, primaryKeyValue);
+            string error = LoadSingleInto<T>(connection,target, IQ.CreateDBData(target).ClassInfo.PrimaryKey.Name, primaryKeyValue);
             if (!string.IsNullOrEmpty(error))
             {
                 obj = default(T);

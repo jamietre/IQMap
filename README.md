@@ -147,7 +147,7 @@ any IDataReader.
 
 *ATTRIBUTES*
 
-IQMetaData - applies to a class.
+`IQMetaData` - applies to a class.
 
 	// name of SQL table that this class maps to
 	string TableName;   
@@ -164,7 +164,7 @@ IQMetaData - applies to a class.
     public bool SelectAll;
 
 
-IQField - identifies a property as being included in the map (if not already) and defines behavior
+`IQField` - identifies a property as being included in the map (if not already) and defines behavior
 
     // SQL column name that is associated with this property
     public string SqlName;
@@ -177,3 +177,39 @@ IQField - identifies a property as being included in the map (if not already) an
 	
 	// if null values are found for a non-nullable property, use the data type default instead when mapping
 	public bool IgnoreNull;
+	
+`IQEventHandler` - marks a method to be called for IQ-managed events (save, load, update, delete). That is, whenever
+    you use a strongly-typed method on an object, it will call this function on certain events. The signature should be
+    
+     public void IQEvent(IQEventType type, IDBObjectData data)
+     
+ The 1st parameter is a flags enum with info about the even type. The 2nd is the metadata for this object instance and
+ can be used to check dirty state on fields, enumerate bound fields, and so on. (This can also be gotten with
+ `IQ.DBData(object)`.
+ 
+ `IQIgnore` -  Skip this field entirely
+ 
+ 
+ *Some Internal Discussion*
+ 
+ IQMap keeps a cache of metadata for each type that it knows about. It builds this cache the first time it's used against
+ a particular object type to enumerate the properties and so on, and keeps it in a concurrent dictionary.
+ 
+ Additionally, when you `Load` a strongly typed object, it keeps track of the initial values from the SQL database to 
+ provide dirty state information. This is used to provide optimized update queries, and may also come in handy for lots
+ of other reasons.
+ 
+ The cache gets flushed periodically by checking for broken `WeakReference`s. 
+ 
+ The reflection should be pretty fast because all the hard work is done only once per object type. 
+ 
+ Storing metadata about POCOs is a little tricky. If you override `GetHashCode()` such that it can change based on value data,
+ things could get slow, because if it doesn't get a reference match when looking up by hash code, there's nothing else to do
+ but look through the whole dictionary.
+ 
+ This shouldn't happen often in practice, unless you have thousands of bound database objects in memory simultaneously with
+ value-based hash codes (e.g. they would all be the same for newly created objects). Since I could imagine such a scenario,
+ though, this is an area for improvement.
+ 
+ 
+ 

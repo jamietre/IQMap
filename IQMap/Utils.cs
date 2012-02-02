@@ -16,13 +16,18 @@ namespace IQMap
         public static T GetInstanceOf<T>() {
                     
             T obj;
-            if (typeof(T)==typeof(string) || typeof(T).IsValueType)
+            if (IsValuelikeType<T>())
             {
                 obj = default(T);
             }
             else
             {
                 obj = Activator.CreateInstance<T>();
+                // We have special handling for Expando-like objects -- don't create metadata for them
+                if (!(obj is IDictionary<string,object>))
+                {
+                    IQ.CreateDBData(obj);
+                }
             }
             
             return obj;
@@ -300,6 +305,19 @@ namespace IQMap
             }
 
         }
+        /// <summary>
+        /// True if primitive, value type, or string
+        /// </summary>
+        /// <returns></returns>
+        public static bool IsValuelikeType<T>()
+        {
+            return IsValuelikeType(typeof(T));
+        }
+        public static bool IsValuelikeType(Type t)
+        {
+            return t == typeof(string) || t.IsValueType || t.IsPrimitive;
+        }
+
         public static bool IsNullableType(Type type)
         {
             return type == typeof(string) ||
