@@ -26,8 +26,9 @@ Basic behavior:
 - Metadata about each object you load with IQMap is available, including field-level dirty state. 
   (This info is used to generate optimized update queries for saving -- only changed data is included).
 
+
     // Pass just "where" criteria for most queries when using objects with metadata
-	
+    
     var someObject = IQ.Load<SomeObject>("DataField=12");
     var someObject = IQ.Load<SomeObject>("DataField=@value",12);
     IEnumerable<SomeObject>= IQ.LoadMany<SomeObject>("DataField > @value",12);
@@ -38,10 +39,10 @@ Basic behavior:
     Cat cat1;
     Cat cat2;
     connection.Query("select * FROM animals")
-		.MapNext(cat1)
-		.MapNext(cat2)
-		.Dispose();
-	
+        .MapNext(cat1)
+        .MapNext(cat2)
+        .Dispose();
+    
     // Can be used with value types
 
     IEnumerable<int> kittenIDs = IQ.Query("select kittenID from kittens where catId=@catID",cat1.catID)
@@ -136,30 +137,30 @@ any IDataReader.
     // Map a record (the current row of a datareader, e.g.) to a new T.
     T Map<T>(this IDataRecord record)
 
-	// Map a record to an existing object
-	void Map(this IDataRecord reader,object obj)
-	
-	// Map each row of a datareader to new T objects/value types. If buffered=true, all data is loaded up front and
-	// the reader is closed. Otherwise, the reader won't be closed until the client finishes enumeration (be careful).
-	IEnumerable<T> MapAll<T>(this IDataReader reader, bool buffered=true) 
+    // Map a record to an existing object
+    void Map(this IDataRecord reader,object obj)
+    
+    // Map each row of a datareader to new T objects/value types. If buffered=true, all data is loaded up front and
+    // the reader is closed. Otherwise, the reader won't be closed until the client finishes enumeration (be careful).
+    IEnumerable<T> MapAll<T>(this IDataReader reader, bool buffered=true) 
 
 
 *ATTRIBUTES*
 
 `IQMetaData` - applies to a class.
 
-	// name of SQL table that this class maps to
-	string TableName;   
-	
-	// a csv of field info for this class, which can be used instead of field-level attributes e.g.
-	// "TableID(pk),JoinedField(readonly),FirstName,LastName" will identify the fields to include and attributes
-	string FieldMap 
-	
-	// when true, all public gettable properties are excluded by default and only ones marked with an attribute 
-	// or mapped with FieldMap)  are included.
-	bool ExcludeProperties
+    // name of SQL table that this class maps to
+    string TableName;   
+    
+    // a csv of field info for this class, which can be used instead of field-level attributes e.g.
+    // "TableID(pk),JoinedField(readonly),FirstName,LastName" will identify the fields to include and attributes
+    string FieldMap 
+    
+    // when true, all public gettable properties are excluded by default and only ones marked with an attribute 
+    // or mapped with FieldMap)  are included.
+    bool ExcludeProperties
 
-	// when true, uses * from select queries instead of producing a field list
+    // when true, uses * from select queries instead of producing a field list
     public bool SelectAll;
 
 
@@ -168,15 +169,15 @@ any IDataReader.
     // SQL column name that is associated with this property
     public string SqlName;
 
-	// the field is the primary key
+    // the field is the primary key
     public bool IsPrimaryKey;
 
-	// do not try to update this field when saving
+    // do not try to update this field when saving
     public bool ReadOnly;
-	
-	// if null values are found for a non-nullable property, use the data type default instead when mapping
-	public bool IgnoreNull;
-	
+    
+    // if null values are found for a non-nullable property, use the data type default instead when mapping
+    public bool IgnoreNull;
+    
 `IQEventHandler` - marks a method to be called for IQ-managed events (save, load, update, delete). That is, whenever
     you use a strongly-typed method on an object, it will call this function on certain events. The signature should be
     
