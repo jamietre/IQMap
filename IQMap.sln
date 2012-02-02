@@ -1,0 +1,44 @@
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IQMap", "IQMap\IQMap.csproj", "{46BA553D-E1B5-4D83-A5B3-5A51AD28AA42}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IQMapTest", "IQMapTest\IQMapTest.csproj", "{9CACD3BC-743B-41A0-AE4A-12E50B204608}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{7BEF19CD-F513-48C0-ACB8-D789157AD1C4}"
+	ProjectSection(SolutionItems) = preProject
+		IQMap.vsmdi = IQMap.vsmdi
+		Local.testsettings = Local.testsettings
+		TraceAndTestImpact.testsettings = TraceAndTestImpact.testsettings
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(TestCaseManagementSettings) = postSolution
+		CategoryFile = IQMap.vsmdi
+	EndGlobalSection
+	GlobalSection(SourceCodeControl) = preSolution
+		SccNumberOfProjects = 3
+		SccLocalPath0 = .
+		SccProjectUniqueName1 = IQMap\\IQMap.csproj
+		SccLocalPath1 = IQMap
+		SccProjectUniqueName2 = IQMapTest\\IQMapTest.csproj
+		SccLocalPath2 = .
+		SccProjectFilePathRelativizedFromConnection2 = IQMapTest\\
+	EndGlobalSection
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{46BA553D-E1B5-4D83-A5B3-5A51AD28AA42}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46BA553D-E1B5-4D83-A5B3-5A51AD28AA42}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{46BA553D-E1B5-4D83-A5B3-5A51AD28AA42}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{46BA553D-E1B5-4D83-A5B3-5A51AD28AA42}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9CACD3BC-743B-41A0-AE4A-12E50B204608}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9CACD3BC-743B-41A0-AE4A-12E50B204608}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9CACD3BC-743B-41A0-AE4A-12E50B204608}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9CACD3BC-743B-41A0-AE4A-12E50B204608}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
