@@ -23,6 +23,7 @@ Basic behavior:
 * You can map a property to a different SQL name using the "SqlName" option of the IQField attribute.
 * Metadata about each object you load with IQMap is available, including field-level dirty state.  (This info is used to generate optimized update queries for saving -- only changed data is included).
 
+Examples: 
 
     // Pass just "where" criteria for most queries when using objects with metadata
     
