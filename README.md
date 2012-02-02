@@ -27,6 +27,7 @@ Basic behavior:
   (This info is used to generate optimized update queries for saving -- only changed data is included).
 
 
+
     // Pass just "where" criteria for most queries when using objects with metadata
     
     var someObject = IQ.Load<SomeObject>("DataField=12");
