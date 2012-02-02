@@ -29,7 +29,7 @@ Examples:
     
     var someObject = IQ.Load<SomeObject>("DataField=12");
     var someObject = IQ.Load<SomeObject>("DataField=@value",12);
-    IEnumerable<SomeObject>= IQ.LoadMany<SomeObject>("DataField > @value",12);
+    IEnumerable<SomeObject> list = IQ.LoadMany<SomeObject>("DataField > @value",12);
     IQ.Save(someObject);
 
     // Can be used on any objects -- generic "Query" on a connection returns a datareader.
