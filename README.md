@@ -10,22 +10,18 @@ though I have borrowed some tests.
 
 IQMap features:
 
-- Works with POCO objects
-- Uses attributes to identify special behavior, though you can also control that behavior by altering metadata for an object. This means you could take advantage of all of its features without any class decoration.
-- Works with any ADO.NET provider, though some features might require you to implement a strategy. (e.g. the code to return a new ID from an insert is 
+* Works with POCO objects
+* Uses attributes to identify special behavior, though you can also control that behavior by altering metadata for an object. This means you could take advantage of all of its features without any class decoration.
+* Works with any ADO.NET provider, though some features might require you to implement a strategy. (e.g. the code to return a new ID from an insert is 
 not the same for
-- Tries to support all kinds of natural syntaxes for passing queries. When using with marked-up objects (see attributes, below)
-  you only need to pass criteria for most queries.
+* Tries to support all kinds of natural syntaxes for passing queries. When using with marked-up objects (see attributes, below) you only need to pass criteria for most queries.
 
 Basic behavior:
 
-- Maps any matching fields from an SQL query to a same-named property.
-- Only properties with public getters are included by default (though you can override this behavior by marking a field).
-  Fields and private-get/internal properties are not included by default.
-- You can map a property to a different SQL name using the "SqlName" option of the IQField attribute.
-- Metadata about each object you load with IQMap is available, including field-level dirty state. 
-  (This info is used to generate optimized update queries for saving -- only changed data is included).
-
+* Maps any matching fields from an SQL query to a same-named property.
+* Only properties with public getters are included by default (though you can override this behavior by marking a field). Fields and private-get/internal properties are not included by default.
+* You can map a property to a different SQL name using the "SqlName" option of the IQField attribute.
+* Metadata about each object you load with IQMap is available, including field-level dirty state.  (This info is used to generate optimized update queries for saving -- only changed data is included).
 
 
     // Pass just "where" criteria for most queries when using objects with metadata
