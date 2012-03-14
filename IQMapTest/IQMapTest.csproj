@@ -47,6 +47,7 @@
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Data" />
+    <Reference Include="System.Data.Linq" />
     <Reference Include="System.XML" />
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
@@ -56,6 +57,8 @@
     </CodeAnalysisDependentAssemblyPaths>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="TestObjects\TestObjectConstructor.cs" />
+    <Compile Include="Utils.cs" />
     <Compile Include="TestObjects\AbstractClass.cs" />
     <Compile Include="TestObjects\Dog.cs" />
     <Compile Include="TestObjects\TestDataStorageController.cs" />
@@ -63,7 +66,6 @@
     <Compile Include="SqlQueryRaw.cs" />
     <Compile Include="Objects.cs" />
     <Compile Include="Mocks\TestDataReader.cs" />
-    <Compile Include="Mocks\oldTestDataStorageController.cs" />
     <Compile Include="Select.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestConfig.cs" />

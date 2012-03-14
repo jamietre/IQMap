@@ -12,7 +12,9 @@ namespace IQMap
         Insert=2,
         Update=4,
         Load=8,
-        Delete=16
+        Delete=16,
+        Before = 32,
+        After = 64
     }
     [System.AttributeUsage(System.AttributeTargets.Method)]
     public class IQEventHandler: Attribute 

@@ -11,11 +11,14 @@ namespace IQMap.Implementation
         #region private properties
 
 
-        protected virtual IDbCommand GetCommand(IDbConnection connection,string query, IEnumerable<IDataParameter> parameters, IDbTransaction transaction)
+        protected virtual IDbCommand GetCommand(IDbConnection connection,string query, IEnumerable<IDataParameter> parameters,
+            IDbTransaction transaction)
         {
             LastQuery = query;
             var lastParameters = new List<IDataParameter>();
             IDbCommand cmd = connection.CreateCommand();
+            cmd.CommandText = query;
+
             if (parameters != null)
             {
                 foreach (var item in parameters)
@@ -47,13 +50,10 @@ namespace IQMap.Implementation
         }
         
         protected abstract string GetQueryForRows(string query, int firstRow, int totalRows);
-        protected abstract int InsertAndReturnNewID(IDbConnection conn, string sql, IEnumerable<IDataParameter> parameters = null, IDbTransaction transaction=null);
+        protected abstract int InsertAndReturnNewID(IDbConnection conn, string sql, IEnumerable<IDataParameter> parameters = null,
+            IDbTransaction transaction = null,
+            CommandBehavior commandBehavior = CommandBehavior.Default);
 
-        protected virtual CommandBehavior CurrentCommandBehavior(IDbTransaction trans)
-        {
-            return trans == null ? CommandBehavior.CloseConnection : CommandBehavior.Default;
-
-        }
         #endregion
 
         #region DataStorageController methods
@@ -63,8 +63,9 @@ namespace IQMap.Implementation
         public virtual IDataReader RunQuery(IDbConnection connection, string query, 
             IEnumerable<IDataParameter> parameters = null, 
             int firstRow=-1, 
-            int totalRows=-1, 
-            IDbTransaction transaction=null) 
+            int totalRows=-1,
+            IDbTransaction transaction = null,
+            CommandBehavior commandBehavior = CommandBehavior.Default) 
         {
             
             IDataReader dataReader = null;
@@ -77,20 +78,19 @@ namespace IQMap.Implementation
             }
             sql = ProcessSql(sql,parameters);
 
-            using (IDbCommand cmd = GetCommand(connection,query,parameters,transaction))
+            using (IDbCommand cmd = GetCommand(connection, sql, parameters, transaction))
             {
 
-                cmd.CommandText = sql;
+
 
                 ExecuteSqlFinal(new Action(() =>
                 {
-                    dataReader = cmd.ExecuteReader(CurrentCommandBehavior(transaction));
+                    dataReader = cmd.ExecuteReader(commandBehavior);
                 }));
 
                 cmd.Parameters.Clear();
             }
 
-            //RemoveCommandParameters(cmd);
             OnQueryComplete();
             return dataReader;
         }
@@ -99,23 +99,27 @@ namespace IQMap.Implementation
           IEnumerable<IDataParameter> parameters = null,
           int firstRow = -1,
           int totalRows = -1,
-          IDbTransaction transaction = null)
+          IDbTransaction transaction = null,
+          CommandBehavior commandBehavior=CommandBehavior.Default)
         {
             rows = Count(connection, query, parameters);
-            return RunQuery(connection, query, parameters,firstRow, totalRows, transaction);
+            return RunQuery(connection, query, parameters,firstRow, totalRows, transaction,commandBehavior);
         }
-        public virtual int Count(IDbConnection connection, string query, IEnumerable<IDataParameter> parameters = null)
+        public virtual int Count(IDbConnection connection, string query, IEnumerable<IDataParameter> parameters = null,
+            CommandBehavior commandBehavior = CommandBehavior.Default)
         {
             ValidateQueryType(query, "select");
             string countQuery = "SELECT COUNT(*) FROM (" + query + ") q";
-            return RunQueryScalar(connection,countQuery, parameters);
+            return RunQueryScalar(connection,countQuery, parameters,null,commandBehavior);
         }
 
-        public virtual int RunQueryScalar(IDbConnection connection, string query, IEnumerable<IDataParameter> parameters = null, IDbTransaction transaction = null)
+        public virtual int RunQueryScalar(IDbConnection connection, string query, IEnumerable<IDataParameter> parameters = null,
+            IDbTransaction transaction = null,
+            CommandBehavior commandBehavior = CommandBehavior.Default)
         {
 
             int result = 0;
-            using (IDataReader reader =  RunQuery(connection,query,parameters,transaction: transaction)) 
+            using (IDataReader reader =  RunQuery(connection,query,parameters,transaction: transaction, commandBehavior: commandBehavior)) 
             {
                 if (reader.Read())
                 {
@@ -128,14 +132,47 @@ namespace IQMap.Implementation
             }
             return result;
         }
+        
+      
 
         public virtual int RunQueryInsert(IDbConnection connection, 
             string query, 
             IEnumerable<IDataParameter> queryParameters = null, 
-            IDbTransaction transaction = null)
+            IDbTransaction transaction = null,
+            CommandBehavior commandBehavior = CommandBehavior.Default)
         {
-            return InsertAndReturnNewID(connection,query, queryParameters,transaction);
-        }      
+            return InsertAndReturnNewID(connection,query, queryParameters,transaction,commandBehavior);
+        }
+
+        public virtual IDataReader RunStoredProcedure(IDbConnection connection, string spName,
+           IEnumerable<IDataParameter> parameters = null,
+           int firstRow = -1,
+           int totalRows = -1,
+           IDbTransaction transaction = null,
+           CommandBehavior commandBehavior = CommandBehavior.Default)
+        {
+            if (firstRow >= 0 || totalRows >= 0)
+            {
+                throw new NotImplementedException("Can't use row selection for SP results... yet.");
+            }
+
+            IDataReader reader = null;
+            using (IDbCommand cmd = GetCommand(connection, spName, parameters, transaction))
+            {
+                cmd.CommandType = CommandType.StoredProcedure;
+
+                ExecuteSqlFinal(new Action(() =>
+                {
+                    reader = cmd.ExecuteReader(commandBehavior);
+                }));
+
+                cmd.Parameters.Clear();
+            }
+
+            OnQueryComplete();
+            return reader;
+
+        }
 
         #endregion
 
@@ -207,7 +244,7 @@ namespace IQMap.Implementation
             string sql = CleanSql(querySql);
             if (parameters != null)
             {
-                List<Tuple<string,int,int>> parmList = new List<Tuple<string,int,int>>(Utils.GetParameterNames(querySql));
+                List<string> parmList = new List<string>(Utils.GetParameterNames(querySql));
                 
                 foreach (var parm in parameters)
                 {

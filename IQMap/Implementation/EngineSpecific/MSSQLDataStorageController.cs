@@ -29,7 +29,8 @@ namespace IQMap.Implementation
         public virtual void RunStoredProcedure(IDbConnection connection, string procedureName,
             IEnumerable<IDataParameter> inputParameters, 
             IEnumerable<IDataParameter> outputParameters,
-            IDbTransaction transaction)
+            IDbTransaction transaction,
+            CommandBehavior commandBehavior)
         {
 
             SqlCommand cmd = new SqlCommand(procedureName, (SqlConnection)connection);
@@ -55,19 +56,24 @@ namespace IQMap.Implementation
             {
                 cmd.ExecuteScalar();
             }));
-
+            if (commandBehavior == CommandBehavior.CloseConnection)
+            {
+                connection.Close();
+            }
             OnQueryComplete();
         }
         public virtual SqlDataReader RunStoredProcedureDataset(IDbConnection connection, 
             string procedureName, 
             IEnumerable<IDataParameter> queryParameters,
-            IDbTransaction transaction)
+            IDbTransaction transaction,
+            CommandBehavior commandBehavior)
         {
-            return RunStoredProcedureDataset(connection,procedureName, queryParameters, null,transaction);
+            return RunStoredProcedureDataset(connection,procedureName, queryParameters, null,transaction, commandBehavior);
         }
         public virtual SqlDataReader RunStoredProcedureDataset(IDbConnection connection, 
             string procedureName, IEnumerable<IDataParameter> queryParameters, IEnumerable<IDataParameter> outputParameters,
-            IDbTransaction transaction)
+            IDbTransaction transaction,
+            CommandBehavior commandBehavior = CommandBehavior.Default)
         {
 
             SqlDataReader reader=null;
@@ -97,7 +103,7 @@ namespace IQMap.Implementation
 
                 ExecuteSqlFinal(new Action(() =>
                 {
-                    reader = cmd.ExecuteReader(CurrentCommandBehavior(transaction));
+                    reader = cmd.ExecuteReader(commandBehavior);
                 }));
 
                 cmd.Parameters.Clear();
@@ -113,7 +119,9 @@ namespace IQMap.Implementation
         /// <param name="QueryParameters"></param>
         /// <param name="DB"></param>
         /// <returns></returns>
-        public virtual int RunStoredProcedureScalar(IDbConnection conn, string procedureName, SqlParameter[] parameters, IDbTransaction transaction=null)
+        public virtual int RunStoredProcedureScalar(IDbConnection conn, string procedureName, SqlParameter[] parameters, 
+            IDbTransaction transaction=null,
+            CommandBehavior commandBehavior = CommandBehavior.Default)
         {
             ProcessSql(procedureName, parameters);
 
@@ -139,7 +147,7 @@ namespace IQMap.Implementation
 
                 cmd.Parameters.Clear();
             }
-            if (CurrentCommandBehavior(transaction)== CommandBehavior.CloseConnection)
+            if (commandBehavior == CommandBehavior.CloseConnection)
             {
                 conn.Close();
             }
@@ -159,7 +167,9 @@ namespace IQMap.Implementation
             throw new NotImplementedException();
         }
 
-        protected override int InsertAndReturnNewID(IDbConnection conn, string query, IEnumerable<IDataParameter> parameters = null, IDbTransaction transaction = null)
+        protected override int InsertAndReturnNewID(IDbConnection conn, string query, IEnumerable<IDataParameter> parameters = null, 
+            IDbTransaction transaction = null,
+            CommandBehavior commandBehavior = CommandBehavior.Default)
         {
             int result = 0;
             string sql = query + "; SET @ID=SCOPE_IDENTITY();";
@@ -180,6 +190,10 @@ namespace IQMap.Implementation
                 result = Convert.ToInt32(ID.Value.ToString());
                 cmd.Parameters.Clear();
                 cmd.Dispose();
+            }
+            if (commandBehavior == CommandBehavior.CloseConnection)
+            {
+                conn.Close();
             }
             OnQueryComplete();
             return result;

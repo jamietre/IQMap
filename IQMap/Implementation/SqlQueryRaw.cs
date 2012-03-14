@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -13,24 +14,36 @@ namespace IQMap.Implementation
     /// </summary>
     public class SqlQueryRaw: IQuery
     {
-        public SqlQueryRaw(string sql, params object[] parameters)
+        #region constructor
+
+        public SqlQueryRaw(string sql)
         {
-
-
             QuerySql = sql.Trim();
-            object[] parms = parameters == null ? 
-                new object[] { null } :
-                parameters.Length == 0 ? null :
-                parameters;
-            if (parms != null)
+            QueryType = ParseQueryType();
+        }
+        public SqlQueryRaw(string sql, IEnumerable<object> parameters)
+        {
+            IEnumerable<IDataParameter> parms;
+            if (parameters is IEnumerable<IDataParameter>)
             {
-                QueryParameters.AddRange(ParseParameters(sql, parms));
-            } 
+                parms = (IEnumerable<IDataParameter>)parameters;
+                QuerySql = sql;
+            }
+            else
+            {
+                ParameterParser pp = new ParameterParser(sql, parameters);
+                parms = pp.Parameters;
+                QuerySql = pp.Query;
+            }
+
+
+            QueryParameters.AddRange(parms);
 
             QueryType = ParseQueryType();
 
         }
 
+        #endregion
 
         protected string QuerySql;
 
@@ -67,128 +80,42 @@ namespace IQMap.Implementation
         {
             return QuerySql;
         }
-        //public string SetQuery(string sql)
-        //{
-        //    QuerySql = sql;
-        //}
+
         public void AddFieldMap(IEnumerable<KeyValuePair<string, string>> fieldMap)
         {
-            
+            throw new NotImplementedException();
         }
 
-        public string From
+        public bool IsComplete
         {
-            get;
-            set;
+            get
+            {
+                return true;
+            }
+            
         }
         public QueryType QueryType
         {
             get;
             protected set;
         }
-
-        protected IEnumerable<IDataParameter> ParseParameters(string sql, params object[] parameters)
+        public IQuery Clone()
         {
-            if (parameters.Length==0) {
-                yield break;
-            }
+            SqlQueryRaw query = new SqlQueryRaw(QuerySql, Parameters);
+            return query;
 
-            bool isNamed=false;
-            if ((parameters.Length % 2) == 0)
-            {
-                isNamed = true;
-                for (int i = 0; i < parameters.Length; i+=2)
-                {
-                    if (parameters[i].GetType() == typeof(string))
-                    {
-                        string parmName = (string)parameters[i];
-                        if (sql.IndexOf(parmName) <= 0)
-                        {
-                            isNamed = false;
-                        }
-                    }
-                }
-            }
-
-            if (isNamed)
-            {
-
-                for (int i = 0; i < parameters.Length; i += 2)
-                {
-                    IDataParameter parm = new QueryParameter((string)parameters[i], parameters[i+1]);
-                    yield return parm;
-                }
-            }
-            else
-            {
-                // now see if the parameter could be an object
-                
-                List<string> parmNames = new List<string>(Utils.GetParameterNames(sql).Select(item=>item.Item1));
-                
-                if (parameters.Length == 1 && !IsParameterType(parameters[0])) {
-                    foreach (var kvp in GetProperties(parameters[0]))
-                    {
-                        IDataParameter parm = new QueryParameter("@" + kvp.Key, kvp.Value);
-                        yield return parm;
-                    }
-                } else if (parameters.Length==1 && parmNames.Count==0) {
-                    // One parameter, none in query - make it an equals                
-                        QuerySql = QuerySql + "=@1";
-                        IDataParameter parm = new QueryParameter("@1", parameters[0]);
-                        yield return parm;
-                    
-                }
-                else if (parameters.Length == parmNames.Count)
-                {
-                    for (int i = 0; i < parameters.Length; i++)
-                    {
-                        IDataParameter parm = new QueryParameter(parmNames[i], parameters[i]);
-                        yield return parm;
-                    }
-                }
-                else
-                {
-                    throw new Exception("Parameters must match the query parameter names or count.");
-                }
-            }
-            yield break;
         }
-        /// <summary>
-        /// Enumerate props/values for an object
-        /// </summary>
-        /// <param name="obj"></param>
-        /// <returns></returns>
-        private IEnumerable<KeyValuePair<string,object>> GetProperties(object obj)
+
+         
+        public IQuery Clone(QueryType type)
         {
-            Type type = obj.GetType();
-            IEnumerable<MemberInfo> members = type.GetMembers(BindingFlags.Public | BindingFlags.Instance);
-            foreach (var member in members)
-            {
-                if (member is PropertyInfo)
-                {
-                    PropertyInfo info = (PropertyInfo)member;
-                    yield return new KeyValuePair<string, object>(info.Name, info.GetValue(obj,null));
-                }
-            }
+            throw new Exception("You can't change the type of an SqlQueryRaw object by cloning it..");
         }
-        /// <summary>
-        /// Check the parameter to see if it's legitimate paramter values
-        /// </summary>
-        /// <param name="parameters"></param>
-        /// <returns></returns>
-        protected bool IsParameterType(Object obj)
-        {
-            if (obj == null)
-            {
-                return true;
-            }
-            else
-            {
-                Type t = Utils.GetUnderlyingType(obj.GetType());
-                return t.IsPrimitive || t == typeof(string) || t == typeof(byte[]) || t == typeof(DateTime) || t.IsEnum;
-            }
-        }
-       
+        
+
+           
+        
+
         protected QueryType ParseQueryType()
         {
             string clean = QuerySql.ToLower();
@@ -208,5 +135,88 @@ namespace IQMap.Implementation
 
         }
 
+
+
+        public string Select
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public string Having
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
+        public string From
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public string Where
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public string OrderBy
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public string GroupBy
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+
+        public ISqlQuery AddWhere(string condition)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ISqlQuery AddParameter(IDataParameter parameter)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -9,8 +9,43 @@ namespace IQMap.Implementation
 {
     public class SqlQuery: ISqlQuery
     {
-        #region private properties
+        #region constructors
 
+        public SqlQuery()
+        {
+            Initialize(QueryType.Select);
+        }
+        public SqlQuery(QueryType queryType)
+        {
+            Initialize(queryType);
+        }
+
+        protected virtual void Initialize(QueryType queryType)
+        {
+            Clear();
+            ClearFieldMap();
+            QueryType = queryType;
+        }
+
+        #endregion
+
+        #region private properties
+        
+        protected int parameterCount = 0;
+        protected string select;
+        protected string from;
+        protected string groupBy;
+        protected string having;
+        protected string orderBy;
+        protected bool _IsDirty = false;
+
+        protected SqlFieldMap sqlFieldMap
+        {
+            get
+            {
+                return _sqlFieldMap.Value;
+            }
+        }
 
         protected Lazy<Dictionary<string, SqlValue>> _updateData =
             new Lazy<Dictionary<string, SqlValue>>();
@@ -23,15 +58,248 @@ namespace IQMap.Implementation
             }
 
         }
+
+        protected Lazy<SqlFieldMap> _sqlFieldMap = new Lazy<SqlFieldMap>();
+        protected List<SortCriterion> sortCriterionList
+        {
+            get
+            {
+                return _sortCriterionList.Value;
+            }
+        }
+        protected Lazy<List<SortCriterion>> _sortCriterionList = new Lazy<List<SortCriterion>>();
+
+
+        protected IList<IDataParameter> parameterList
+        {
+            get
+            {
+                if (_parameterList == null)
+                {
+                    _parameterList = new List<IDataParameter>();
+                    _parameterNameList = new HashSet<string>();
+                }
+                // Only allow adding from methods
+                return new ReadOnlyCollection<IDataParameter>(_parameterList);
+            }
+            set
+            {
+                if (value != null)
+                {
+                    throw new Exception("Can only set parameterList to null");
+                }
+                _parameterList = null;
+                _parameterNameList = null;
+            }
+        }
+        protected bool ParameterExists(string parameterName)
+        {
+            if (_parameterNameList == null)
+            {
+                return false;
+            }
+            else
+            {
+                string check = (parameterName.Substring(0, 1) == "@" ? "" : "@") + parameterName;
+                return _parameterNameList.Contains(check);
+            }
+
+        }
+
+        private HashSet<string> _parameterNameList;
+        private List<IDataParameter> _parameterList;
+
+        protected IWhere whereClause
+        {
+            get
+            {
+                if (_whereClause == null)
+                {
+                    _whereClause = new WhereClause();
+                    _whereClause.Owner = this;
+                }
+                return _whereClause;
+            }
+            set
+            {
+                _whereClause = value;
+                _whereClause.Owner = this;
+            }
+        }
+        protected IWhere _whereClause = null;
+
         #endregion
 
         #region public properties
+        public bool IsComplete
+        {
+            get
+            {
+                return !String.IsNullOrEmpty(From);
+            }
+        }
+        public string TableName { get; set; }
 
+        public string Select
+        {
+            get
+            {
+                return select;
+            }
+            set
+            {
+                select = value ?? "";
+                Touch();
+            }
+        }
+        public string From
+        {
+            get
+            {
+                if (String.IsNullOrEmpty(from))
+                {
+                    return TableName;
+                }
+                else {
+                    return from;
+                }
+            }
+            set
+            {
+                from = value ?? "";
+                Touch();
+            }
+        }
+
+
+        public string GroupBy
+        {
+            get
+            {
+                return groupBy;
+            }
+            set
+            {
+                groupBy = value ?? "";
+                Touch();
+            }
+        }
+        public string Having
+        {
+            get
+            {
+                return having;
+            }
+            set
+            {
+                having = value ?? "";
+                Touch();
+            }
+        }
+        public string Where
+        {
+            get
+            {
+                return whereClause.GetSql();
+            }
+            set
+            {
+                whereClause = new WhereString(value);
+                Touch();
+            }
+        }
+
+        public string OrderBy
+        {
+            get
+            {
+                List<SortCriterion> finalList = new List<SortCriterion>(sortCriterionList.Where(item => item.Priority == SortPriority.Required
+                    || item.Priority == SortPriority.RequiredOrder));
+                finalList.AddRange(sortCriterionList.Where(item => item.Priority == SortPriority.Normal));
+                finalList.AddRange(sortCriterionList.Where(item => item.Priority == SortPriority.Default));
+
+                return String.Join(",", finalList.Select(item => item.GetSql()));
+            }
+            set
+            {
+                sortCriterionList.Clear();
+                if (value != "")
+                {
+                    AddSort(value, SortPriority.Normal);
+                }
+                Touch();
+            }
+        }
+        /// <summary>
+        /// Sort clauses that appear before any other and cannot be removed
+        /// </summary>
+        public string OrderByRequired
+        {
+            get
+            {
+                return String.Join(",", sortCriterionList
+                    .Where(item => item.Priority == SortPriority.Required || item.Priority == SortPriority.RequiredOrder)
+                    .Select(item => item.GetSql()));
+            }
+            set
+            {
+                AddSort(value, SortPriority.Required);
+            }
+        }
         public QueryType QueryType
         {
             get;
             protected set;
         }
+        /// <summary>
+        /// This object has changed since it was created or cloned
+        /// </summary>
+        public virtual bool IsDirty
+        {
+            get
+            {
+                return this._IsDirty;
+            }
+        }
+
+
+
+        /// <summary>
+        /// A list of parameters associated with this object
+        /// </summary>
+        public IEnumerable<IDataParameter> Parameters
+        {
+            get
+            {
+                if (parameterList != null)
+                {
+                    foreach (var parm in parameterList)
+                    {
+                        yield return parm;
+                    }
+                }
+                else
+                {
+                    yield break;
+                }
+            }
+            set
+            {
+                if (value != null)
+                {
+                    foreach (var parm in value)
+                    {
+                        AddParameter(parm);
+                    }
+                }
+                else
+                {
+                    parameterList = null;
+                }
+            }
+        }
+
+
         public IEnumerable<KeyValuePair<string, SqlValue>> UpdateData 
         {
             get
@@ -79,74 +347,34 @@ namespace IQMap.Implementation
                 return "(" + sb.ToString() + ")";
             }
         }
-        #endregion
 
+        public bool OptimizeParameterNames { get; set; }
         public event EventHandler Dirty;
         
-        public SqlQuery()
-        {
-            Initialize(QueryType.Select);
-        }
-        public SqlQuery(QueryType queryType)
-        {
-            Initialize(queryType);
-        }
-        protected virtual void Initialize(QueryType queryType)
-        {
-            Clear();
-            ClearFieldMap();
-            QueryType = queryType;
-        }
-        protected SqlFieldMap sqlFieldMap
-        {
-            get
-            {
-                return _sqlFieldMap.Value;
-            }
-        }
-        protected Lazy<SqlFieldMap> _sqlFieldMap = new Lazy<SqlFieldMap>();
-        protected List<SortCriterion> sortCriterionList {
-            get
-            {
-                return _sortCriterionList.Value;
-            }
-        }
-        protected Lazy<List<SortCriterion>> _sortCriterionList = new Lazy<List<SortCriterion>>();
-
-        protected List<IDataParameter> parameterList
-        {
-            get
-            {
-                return _parameterList.Value;
-            }
-        }
-        private Lazy<List<IDataParameter>> _parameterList = new Lazy<List<IDataParameter>>();
-
-        protected IWhere whereClause
-        {
-            get
-            {
-                if (_whereClause == null)
-                {
-                    _whereClause = new WhereClause();
-                    _whereClause.Owner = this;
-                }
-                return _whereClause;
-            }
-            set
-            {
-                _whereClause = value;
-                _whereClause.Owner = this;
-            }
-        }
-        protected IWhere _whereClause = null;
+        #endregion
 
         #region public methods
+        /// <summary>
+        /// Marks this object as unchanged (IsDirty=false)
+        /// </summary>
+        public virtual void Clean()
+        {
+            this._IsDirty = false;
+        }
+        public string SqlAuditString()
+        {
+            return Utils.QueryAsSql(GetQuery(), Parameters);
+        }
 
         public ISqlQuery AddUpdateData(string fieldName, object value)
         {
-            SqlValue sqlValue = new SqlValue(value);
-            updateData[MapField(fieldName)] = sqlValue;
+            //SqlValue sqlValue = new SqlValue(value);
+            //updateData[MapField(fieldName)] = sqlValue;
+            //return this;
+            string parmName = GetParameterName(OptimizeParameterNames ? "" : fieldName);
+
+            AddParameter("@" + parmName, value);
+            updateData[MapField(fieldName)] = new SqlValueParm("@" + parmName);
             return this;
         }
 
@@ -200,14 +428,17 @@ namespace IQMap.Implementation
         /// Returns a deep copy of this object
         /// </summary>
         /// <returns></returns>
-        public ISqlQuery Clone()
+        public ISqlQuery Clone(QueryType type)
         {
             SqlQuery newQuery = new SqlQuery();
 
-            newQuery.QueryType = QueryType;
+            newQuery.QueryType = type;
+            newQuery.TableName = TableName;
             newQuery.Select = Select;
             newQuery.From = From;
             newQuery.GroupBy = GroupBy;
+            newQuery.Having = Having;
+            newQuery.OptimizeParameterNames = OptimizeParameterNames;
 
             if (_sortCriterionList.IsValueCreated)
             {
@@ -237,18 +468,21 @@ namespace IQMap.Implementation
             return newQuery;
 
         }
+
+        public ISqlQuery Clone()
+        {
+            return Clone(QueryType);
+        }
         /// <summary>
         /// Return the SQL for this query
         /// </summary>
         /// <returns></returns>
         public string GetQuery()
         {
-            if (From=="") {
-                throw new Exception("Incomplete query (must include at least From");
-            }
             switch (QueryType)
             {
                 case QueryType.Select:
+                    RequireClauses(select: true, from: true);
                     return String.Format("SELECT {0} FROM {1}{2}{3}{4}",
                         Select,
                         From,
@@ -256,25 +490,21 @@ namespace IQMap.Implementation
                         GroupBy != "" ? " GROUP BY " + GroupBy : "",
                         OrderBy != "" ? " ORDER BY " + OrderBy : "");
                 case QueryType.Delete:
-                    if (Where == "")
-                    {
-                        throw new Exception("You must project a WHERE clause for a DELETE query.");
-                    }
+                    RequireClauses(tableName: true, where: true);
                     return String.Format("DELETE FROM {0} WHERE {1}",
-                        From,
+                        TableName,
                         Where);
                 case QueryType.Update:
-                    if (Where == "")
-                    {
-                        throw new Exception("You must project a WHERE clause for an UPDATE query.");
-                    }
+                    RequireClauses(tableName: true, where: true, set:true);
+                    // TODO: From queries
                     return String.Format("UPDATE {0} SET {1} WHERE {2}",
-                        From,
+                        TableName,
                         UpdateSet,
                         Where);
                 case QueryType.Insert:
+                    RequireClauses(tableName: true,insertFields: true);
                     return String.Format("INSERT INTO {0} {1} VALUES {2}",
-                        From,
+                        TableName,
                         InsertFields,
                         InsertValues);
                 default:
@@ -283,310 +513,38 @@ namespace IQMap.Implementation
 
             
         }
-        /// <summary>
-        /// A list of parameters associated with this object
-        /// </summary>
-        public IEnumerable<IDataParameter> Parameters
+        protected void RequireClauses(bool tableName = false, bool select = false, bool from = false, bool where = false, 
+            bool set=false, bool insertFields= false)
         {
-            get
+            var err = new Func<string>(() =>
             {
-                if (parameterList != null)
-                {
-                    foreach (var parm in parameterList)
-                    {
-                        yield return parm;
-                    }
-                }
-                else
-                {
-                    yield break;
-                }
-            }
-            set
-            {
-                if (value != null)
-                {
-                    foreach (var parm in value)
-                    {
-                        parameterList.Add(parm);
-                    }
-                }
-                else
-                {
-                    if (_parameterList.IsValueCreated)
-                    {
-                        parameterList.Clear();
-                    }
-                }
-            }
-        }
-        /// <summary>
-        /// Adds an SQL parameter to the query
-        /// </summary>
-        /// <param name="parm"></param>
-        public ISqlQuery AddParameter(IDataParameter parm)
-        {
-            IDataParameter existing = parameterList.FirstOrDefault(item => item.ParameterName== parm.ParameterName);
-            if (existing!=null )
-            {
-                if (existing.Value != parm.Value)
-                {
-                    throw new Exception("A parameter named \"" + parm.ParameterName + "\" with a different value has already been added to this query.");
-                }
-            }
-            else
-            {
-                parameterList.Add(parm);
-                Touch();
-            }
-            return this;
-        }
-        /// <summary>
-        /// Adds a list of parameters to the query
-        /// </summary>
-        /// <param name="parameterList"></param>
-        public ISqlQuery AddParameter(IEnumerable<IDataParameter> parameterList)
-        {
-            foreach (var parm in parameterList)
-            {
-                AddParameter(parm);
-            }
-            return this;
-        }
-        /// <summary>
-        /// Add a paremeter to the list, @ will be added to name automatically if not present
-        /// </summary>
-        /// <param name="name"></param>
-        /// <param name="value"></param>
-        public ISqlQuery AddParameter(string name, object value)
-        {
-            string fullName = name.Substring(0, 1) == "@" ? name : "@" + name;
-            SqlValue val = new SqlValue(value);
-            return AddParameter(new QueryParameter(name, val.Value));
-        }
-  
-        /// <summary>
-        /// Clears all criteria. This does not clear the field map.
-        /// </summary>
-        public virtual void Clear()
-        {
-            QueryType = QueryType.Select;
-            Select = "*";
-            From = "";
-            GroupBy = "";
-            if (_parameterList.IsValueCreated)
-            {
-                parameterList.Clear();
-            }
-            if (_sortCriterionList.IsValueCreated)
-            {
-                sortCriterionList.Clear();
-            }
-            _whereClause = null;
-            Clean();
-        }
+                return " is required for an " + QueryType.ToString() + " query.";
+            });
 
-        #endregion
-
-        protected virtual void Touch()
-        {
-            this._IsDirty = true;
-            if (Dirty != null)
+            if (tableName && String.IsNullOrEmpty(TableName))
             {
-                Dirty(this, new EventArgs());
-
+                throw new IQException("TableName" + err());
             }
-        }
-        public string Select
-        {
-            get
+            if (select && String.IsNullOrEmpty(Select))
             {
-                return select;
+                throw new IQException("A SELECT clause" + err());
             }
-            set
+            if (from && String.IsNullOrEmpty(From))
             {
-                select = value ?? "";
-                Touch();   
+                throw new IQException("A FROM clause" + err());
             }
-        }
-        protected string select;
-        public string From
-        {
-            get
+            if (where && String.IsNullOrEmpty(Where))
             {
-                return from;
+                throw new IQException("A WHERE clause" + err());
             }
-            set
+            if (set && String.IsNullOrEmpty(UpdateSet))
             {
-                from = value ?? "";
-                Touch();
+                throw new IQException("TableName" + err());
             }
-        }
-        protected string from;
-        public string Where
-        {
-            get
+            if (insertFields && String.IsNullOrEmpty(InsertFields))
             {
-                return whereClause.GetSql();
+                throw new IQException("TableName" + err());
             }
-            set
-            {
-                whereClause = new WhereString(value);
-                Touch();
-            }
-        }
-        
-        public string GroupBy
-        {
-            get
-            {
-                return groupBy;
-            }
-            set
-            {
-                groupBy = value ?? "";
-                Touch();
-            }
-        }
-        protected string groupBy;
-        public string OrderBy
-        {
-            get
-            {
-                List<SortCriterion> finalList = new List<SortCriterion>(sortCriterionList.Where(item => item.Priority==SortPriority.Required 
-                    || item.Priority == SortPriority.RequiredOrder));
-                finalList.AddRange(sortCriterionList.Where(item => item.Priority==SortPriority.Normal));
-                finalList.AddRange(sortCriterionList.Where(item => item.Priority == SortPriority.Default));
-
-                return String.Join(",", finalList.Select(item => item.GetSql()));
-            }
-            set
-            {
-                sortCriterionList.Clear();
-                if (value != "")
-                {
-                    AddSort(value, SortPriority.Normal);
-                }
-                Touch();
-            }
-        }
-
-        /// <summary>
-        /// Sort clauses that appear before any other and cannot be removed
-        /// </summary>
-        public string OrderByRequired
-        {
-            get
-            {
-                return String.Join(",", sortCriterionList
-                    .Where(item => item.Priority == SortPriority.Required || item.Priority == SortPriority.RequiredOrder )
-                    .Select(item=>item.GetSql()));
-            }
-            set
-            {
-                AddSort(value, SortPriority.Required);
-            }
-        }
-        protected string orderBy;
-
-        
-        public virtual ISqlQuery AddWhere(string condition)
-        {
-            WhereString where = new WhereString(condition);
-            MergeWhere(where,JoinType.And);
-            return this;
-        }
-        /// <summary>
-        /// Add a simple "field = value" condition
-        /// </summary>
-        /// <param name="condition"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
-        public virtual ISqlQuery AddWhere(string field, object value)
-        {
-            return AddWhere(field, value, ComparisonType.Equal);
-        }
-        public virtual ISqlQuery AddWhere(string field, object value, ComparisonType comparisonType)
-        {
-            IWhereCriterion crit;
-            if (value is string
-                && ((string)value).Substring(0, 1) == "@")
-            {
-                crit = new ParameterWhereCriterion(field,((string)value).Substring(1), comparisonType);
-            }
-            else
-            {
-                crit = new WhereCriterion(field, value, comparisonType);
-            }
-            MergeWhere(crit, JoinType.And);
-            return this;
-        }
-        /// <summary>
-        /// Adds a condition and parameterizes the value. This is the equivalent of adding a field+same-named parameter, and then 
-        /// adding a parameter with the value "value"
-        /// </summary>
-        /// <param name="field"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
-        public virtual ISqlQuery AddWhereParam(string field, object value)
-        {
-            return AddWhereParam(field, value, ComparisonType.Equal);
-        }
-        public virtual ISqlQuery AddWhereParam(string field, string paramName, object value)
-        {
-            return AddWhereParam(field, paramName,value, ComparisonType.Equal);
-        }
-        public virtual ISqlQuery AddWhereParam(string field, object value, ComparisonType comparisonType)
-        {
-            return AddWhereParam(field, field, value, comparisonType);
-        }
-        public virtual ISqlQuery AddWhereParam(string field, string paramName, object value, ComparisonType comparisonType)
-        {
-            WhereCriterion crit = new ParameterWhereCriterion(field,paramName, comparisonType);
-            MergeWhere(crit, JoinType.And);
-            AddParameter("@" + paramName, value);
-            return this;
-        }
-
-        public virtual ISqlQuery AddWhereOr(string condition)
-        {
-            var cond = new WhereString(condition);
-            MergeWhere(cond,JoinType.Or);
-            return this;
-        }
-        public virtual ISqlQuery AddWhere(IWhere condition)
-        {
-            MergeWhere(condition,JoinType.And);
-            return this;
-        }
-        public virtual ISqlQuery AddWhereOr(IWhere condition)
-        {
-            MergeWhere(condition, JoinType.Or);
-            return this;
-        }
-        /// <summary>
-        /// Adds a condition to the "Where" property, and returns self for chainability
-        /// </summary>
-        /// <param name="condition"></param>
-        /// <param name="conditionType"></param>
-        /// <returns></returns>
-        protected void MergeWhere(IWhere component, JoinType joinType)
-        {
-            IWhereClause compound = whereClause as IWhereClause;
-            if (joinType == JoinType.Or && compound != null && compound.Count == 0)
-            {
-                throw new Exception("There is no existing condition to OR");
-            }
-            if (whereClause is IWhereClause && compound.JoinType == joinType)
-            {
-                compound.Add(component);
-            }
-            else
-            {
-                // currently just a single criterion
-                whereClause = new WhereClause(joinType, whereClause, component);
-            }
-            Touch();
         }
         /// <summary>
         /// Add an ordering condition to this query. If it's already present, it will be replaced (superceded) by the 
@@ -606,7 +564,7 @@ namespace IQMap.Implementation
         /// <returns></returns>
         public ISqlQuery AddSort(string orderClause)
         {
-            return AddSort(orderClause, SortPriority.Normal );
+            return AddSort(orderClause, SortPriority.Normal);
         }
         public ISqlQuery AddSort(string orderClause, SortPriority priority)
         {
@@ -628,7 +586,7 @@ namespace IQMap.Implementation
                         order = SortOrder.Descending;
                     }
                 }
-                AddSort(clause, order,priority);
+                AddSort(clause, order, priority);
             }
             return this;
         }
@@ -687,29 +645,221 @@ namespace IQMap.Implementation
 
             return this;
         }
-        public string SqlAuditString()
+        /// <summary>
+        /// Adds an SQL parameter to the query
+        /// </summary>
+        /// <param name="parm"></param>
+        public ISqlQuery AddParameter(IDataParameter parm)
         {
-            return Utils.QueryAsSql(GetQuery(), Parameters);
+            
+            if ( ParameterExists(parm.ParameterName) )
+            {
+                IDataParameter existing = parameterList.FirstOrDefault(item => item.ParameterName == parm.ParameterName);
+                if (existing.Value != parm.Value)
+                {
+                    throw new Exception("A parameter named \"" + parm.ParameterName + "\" with a different value has already been added to this query.");
+                }
+            }
+            else
+            {
+                // touch it - this simply forces list to be created. We want creation code in the property so that methods can freely
+                // check its members, but we also want it to be a read-only list so you must add using the innner property. this
+                // makse sure this code block is the only place that can add to it (since it takes special effort to do so) as we
+                // must keep the name list synchronized
+                parameterList.FirstOrDefault();
+                _parameterList.Add(parm);
+                _parameterNameList.Add(parm.ParameterName);
+                Touch();
+            }
+            return this;
+        }
+        /// <summary>
+        /// Adds a list of parameters to the query
+        /// </summary>
+        /// <param name="parameterList"></param>
+        public ISqlQuery AddParameter(IEnumerable<IDataParameter> parameterList)
+        {
+            foreach (var parm in parameterList)
+            {
+                AddParameter(parm);
+            }
+            return this;
+        }
+        /// <summary>
+        /// Add a paremeter to the list, @ will be added to name automatically if not present
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="value"></param>
+        public ISqlQuery AddParameter(string name, object value)
+        {
+            string fullName = name.Substring(0, 1) == "@" ? name : "@" + name;
+            SqlValue val = new SqlValue(value);
+            return AddParameter(new QueryParameter(name, val.Value));
+        }
+  
+        /// <summary>
+        /// Clears all criteria. This does not clear the field map.
+        /// </summary>
+        public virtual void Clear()
+        {
+            QueryType = QueryType.Select;
+            Select = "*";
+            From = "";
+            GroupBy = "";
+            parameterList = null;
+
+            if (_sortCriterionList.IsValueCreated)
+            {
+                sortCriterionList.Clear();
+            }
+            parameterCount = 0;
+            _whereClause = null;
+            Clean();
+        }
+
+        public virtual ISqlQuery AddWhere(string condition)
+        {
+            WhereString where = new WhereString(condition);
+            MergeWhere(where, JoinType.And);
+            return this;
+        }
+        /// <summary>
+        /// Add a simple "field = value" condition
+        /// </summary>
+        /// <param name="condition"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public virtual ISqlQuery AddWhere(string field, object value)
+        {
+            return AddWhere(field, value, ComparisonType.Equal);
+        }
+        public virtual ISqlQuery AddWhere(string field, object value, ComparisonType comparisonType)
+        {
+            IWhereCriterion crit;
+            if (value is string
+                && ((string)value).Substring(0, 1) == "@")
+            {
+                crit = new ParameterWhereCriterion(field, ((string)value).Substring(1), comparisonType);
+            }
+            else
+            {
+                crit = new WhereCriterion(field, value, comparisonType);
+            }
+            MergeWhere(crit, JoinType.And);
+            return this;
+        }
+        /// <summary>
+        /// Adds a condition and parameterizes the value. This is the equivalent of adding a field+same-named parameter, and then 
+        /// adding a parameter with the value "value"
+        /// </summary>
+        /// <param name="field"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public virtual ISqlQuery AddWhereParam(string field, object value)
+        {
+            return AddWhereParam(field, value, ComparisonType.Equal);
+        }
+        public virtual ISqlQuery AddWhereParam(string field, string paramName, object value)
+        {
+            return AddWhereParam(field, paramName, value, ComparisonType.Equal);
+        }
+        public virtual ISqlQuery AddWhereParam(string field, object value, ComparisonType comparisonType)
+        {
+            string paramName = GetParameterName(OptimizeParameterNames ? "" : field);
+            return AddWhereParam(field, paramName, value, comparisonType);
+        }
+        public virtual ISqlQuery AddWhereParam(string field, string paramName, object value, ComparisonType comparisonType)
+        {
+            WhereCriterion crit = new ParameterWhereCriterion(field, paramName, comparisonType);
+            MergeWhere(crit, JoinType.And);
+            AddParameter("@" + paramName, value);
+            return this;
+        }
+
+        public virtual ISqlQuery AddWhereOr(string condition)
+        {
+            var cond = new WhereString(condition);
+            MergeWhere(cond, JoinType.Or);
+            return this;
+        }
+        public virtual ISqlQuery AddWhere(IWhere condition)
+        {
+            MergeWhere(condition, JoinType.And);
+            return this;
+        }
+        public virtual ISqlQuery AddWhereOr(IWhere condition)
+        {
+            MergeWhere(condition, JoinType.Or);
+            return this;
+        }
+        #endregion
+
+        #region private methods
+
+        IQuery IQuery.Clone()
+        {
+            return Clone();
+        }
+
+        IQuery IQuery.Clone(QueryType type)
+        {
+            return Clone(type);
+        }
+        /// <summary>
+        /// Return an unused parameter name WITHOUT the @
+        /// </summary>
+        /// <returns></returns>
+        protected string GetParameterName(string basedOn="")
+        {
+            
+            string baseName = string.IsNullOrEmpty(basedOn) ? "p"  : basedOn;
+
+            string test = baseName=="p" ? baseName+parameterCount.ToString() : baseName ;
+            
+            while (ParameterExists("@" + test))
+            {
+                parameterCount++;
+                test = baseName + parameterCount.ToString();
+            }
+            return test;
+        }
+
+        protected virtual void Touch()
+        {
+            this._IsDirty = true;
+            if (Dirty != null)
+            {
+                Dirty(this, new EventArgs());
+
+            }
         }
 
         /// <summary>
-        /// Marks this object as unchanged (IsDirty=false)
+        /// Adds a condition to the "Where" property, and returns self for chainability
         /// </summary>
-        public virtual void Clean()
+        /// <param name="condition"></param>
+        /// <param name="conditionType"></param>
+        /// <returns></returns>
+        protected void MergeWhere(IWhere component, JoinType joinType)
         {
-            this._IsDirty = false;
-        }
-        /// <summary>
-        /// This object has changed since it was created or cloned
-        /// </summary>
-        public virtual bool IsDirty
-        {
-            get
+            IWhereClause compound = whereClause as IWhereClause;
+            if (joinType == JoinType.Or && compound != null && compound.Count == 0)
             {
-                return this._IsDirty;
+                throw new Exception("There is no existing condition to OR");
             }
+            if (whereClause is IWhereClause && compound.JoinType == joinType)
+            {
+                compound.Add(component);
+            }
+            else
+            {
+                // currently just a single criterion
+                whereClause = new WhereClause(joinType, whereClause, component);
+            }
+            Touch();
         }
-        protected bool _IsDirty = false;
+
+
         /// <summary>
         /// Return an SQL field clause without an alias  (e.g. tbl.Field becomes just Field)
         /// </summary>
@@ -728,6 +878,6 @@ namespace IQMap.Implementation
             }
         }
 
-
+        #endregion
     }
 }

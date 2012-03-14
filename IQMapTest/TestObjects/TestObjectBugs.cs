@@ -6,8 +6,8 @@ using IQMap;
 
 namespace IQMapTest
 {
-    [IQMetaData("testTable")]
-    public class TestObjectBugs: IDatabaseBoundObject
+    [IQClass("testTable")]
+    public class TestObjectBugs : IQObject
     {
         public TestObjectBugs()
         {

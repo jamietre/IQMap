@@ -84,7 +84,7 @@ namespace IQMap
         {
             T obj = Utils.GetInstanceOf<T>();
 
-            if (Utils.IsValuelikeType<T>())
+            if (Utils.IsMappableType<T>())
             {
                 obj = (T)ChangeType(reader[0], typeof(T));
             }

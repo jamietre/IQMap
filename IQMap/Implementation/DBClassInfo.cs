@@ -23,15 +23,14 @@ namespace IQMap.Implementation
 
         #region private properties
 
+        private ISqlQuery _Query;
+        private Type ClassType;
+        private Action<IQClassData> iqConstructor=null;
         private Lazy<Dictionary<string, int>> _fieldIndexMap = new Lazy<Dictionary<string, int>>();
         protected Dictionary<string, int> fieldIndexMap
         {
             get
             {
-                if (!_fieldIndexMap.IsValueCreated)
-                {
-                    throw new Exception("You haven't mapped to an object yet, cannot access FieldInfo");
-                }
                 return _fieldIndexMap.Value;
             }
         }
@@ -50,6 +49,7 @@ namespace IQMap.Implementation
         #endregion
 
         #region public properties
+        
         public IDBFieldInfo PrimaryKey
         {
             get
@@ -102,6 +102,27 @@ namespace IQMap.Implementation
         /// </summary>
         public bool SelectAll { get; protected set; }
         public string TableName { get; protected set; }
+
+        /// <summary>
+        /// The base query object from which new queries using "where" criteria will be constructed.
+        /// </summary>
+
+        public ISqlQuery Query(QueryType type) {
+            if (_Query != null)
+            {
+                return _Query.Clone(type);
+            }
+            else
+            {
+                var query = new SqlQuery(type);
+                query.From = TableName;
+                query.Select = SelectAll ? "*" : String.Join(",", FieldNames);
+                return query;
+            }
+
+            
+        }
+
         public bool ExcludeProperties { get; protected set; }
         public MethodInfo IQEventHandlerMethod { get; protected set; }
 
@@ -160,80 +181,34 @@ namespace IQMap.Implementation
 
         #region public methods
 
-        public IDBFieldInfo GetFieldInfo(string fieldName)
+        /// <summary>
+        /// Main entry point
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="tableName"></param>
+        /// <param name="mappedFields"></param>
+        public void MapClass(Type type, IQClassData data=null)
         {
-            return fieldInfo[fieldIndexMap[fieldName.ToLower()]];
-        }
+            ClassType = type;
 
-        public string SqlName(string fieldName)
-        {
-            return FieldInfo[fieldIndexMap[fieldName.ToLower()]].SqlName;
-        }
+            GetClassMetadata();
+            
+            GetFieldInfoFromClassAttribute();
 
-        public void MapClass(Type type, string tableName = "", string mappedFields = "")
-        {
+            GetClassPropertiesMethods();
 
-            GetClassMetadata(type);
-
-            // calling MapClass with a mappedField parm will override attribute data
-
-            if (!String.IsNullOrEmpty(mappedFields))
+            if (iqConstructor != null)
             {
-                fieldMap = mappedFields;
-            }
-            if (!string.IsNullOrEmpty(tableName))
-            {
-                TableName = tableName;
-            }
-            temporaryFieldInfo = new Dictionary<string, Field>();
-            // Check for a CSV field map to identify which properties to include. Otherwise, use attributes.
-            if (!string.IsNullOrEmpty(fieldMap))
-            {
-                //Dictionary<string, int> indexMap = _fieldIndexMap.Value;
- 
-
-                string[] fields = fieldMap.Split(',');
-                foreach (var fld in fields)
-                {
-                    string fldClean = fld.Trim();
-                    string fldCleanLower = fldClean.ToLower();
-                    Field fldTemp = new Field();
-                    fldTemp.Name = fldClean;
-                    fldTemp.SqlName = fldClean;
-                    fldTemp.InMap = true;
-
-                    if (fldClean.IndexOf("(") > 0)
-                    {
-                        string[] parts = fldClean.Split(new char[] { '(', ',', ')', '=' }, StringSplitOptions.RemoveEmptyEntries);
-                        fldClean = parts[0];
-                        for (int p = 1; p < parts.Length; p++)
-                        {
-                            switch (parts[p].ToLower())
-                            {
-                                case "pk":
-                                    fldTemp.PK = true;
-                                    break;
-                                case "sqlname":
-                                    fldTemp.SqlName = parts[++p];
-                                    break;
-                                case "ignorenull":
-                                    fldTemp.ConvertNullToDefault = true;
-                                    break;
-                                case "readonly":
-                                    fldTemp.ReadOnly = true;
-                                    break;
-                                default:
-                                    throw new Exception("Unknown field option '" + parts[p] + "' found with field '" + fldClean + "'");
-                            }
-                        }
-                    }
-
-                    temporaryFieldInfo[fldCleanLower] = fldTemp;
-
-                }
+                CallIQConstructor();
             }
 
-            GetDatabaseFields(type);
+            // Data passed in to this will supercede anything else0
+            if (data != null)
+            {
+                ProcessConstructorData(data);
+            }
+
+            MapFromTemporaryFields();
 
             if (fieldInfo.Count == 0)
             {
@@ -244,19 +219,33 @@ namespace IQMap.Implementation
                 throw new Exception("No primary key was found in the object.");
             }
         }
+        public bool HasField(string fieldName)
+        {
+            return fieldIndexMap.ContainsKey(fieldName.ToLower());
+
+        }
+        public IDBFieldInfo GetFieldInfo(string fieldName)
+        {
+            return fieldInfo[fieldIndexMap[fieldName.ToLower()]];
+        }
+
+        public string SqlName(string fieldName)
+        {
+            return FieldInfo[fieldIndexMap[fieldName.ToLower()]].SqlName;
+        }
 
         #endregion
 
         #region private methods
 
-        private void GetClassMetadata(Type type)
+        private void GetClassMetadata()
         {
-            object[] attributes = (object[])type.GetCustomAttributes(true);
+            object[] attributes = (object[])ClassType.GetCustomAttributes(true);
             foreach (var attr in attributes)
             {
-                if (attr is IQMetaData)
+                if (attr is IQClass)
                 {
-                    IQMetaData metaData = (IQMetaData)attr;
+                    IQClass metaData = (IQClass)attr;
                     if (!String.IsNullOrEmpty(metaData.FieldMap))
                     {
                         fieldMap = metaData.FieldMap;
@@ -271,17 +260,117 @@ namespace IQMap.Implementation
 
             }
         }
-        private void GetDatabaseFields(Type type)
+        private void GetFieldInfoFromClassAttribute()
         {
-            Dictionary<string, int> indexMap = _fieldIndexMap.Value;
+            temporaryFieldInfo = new Dictionary<string, Field>();
+            // Check for a CSV field map to identify which properties to include. Otherwise, use attributes.
+            if (!string.IsNullOrEmpty(fieldMap))
+            {
+                string[] fields = fieldMap.Split(',');
+                foreach (var fld in fields)
+                {
+                    string fldNameClean = fld.Trim();
+                    Field fldTemp = new Field();
+                    fldTemp.Name = fldNameClean;
+
+                    if (fldNameClean.IndexOf("(") > 0)
+                    {
+                        string[] parts = fldNameClean.Split(new char[] { '(', ',', ')', '=' }, StringSplitOptions.RemoveEmptyEntries);
+                        fldNameClean = parts[0];
+                        for (int p = 1; p < parts.Length; p++)
+                        {
+                            switch (parts[p].ToLower())
+                            {
+                                case "pk":
+                                    fldTemp.PK = true;
+                                    break;
+                                case "sqlname":
+                                    fldTemp.SqlName = parts[++p];
+                                    break;
+                                case "ignorenull":
+                                    fldTemp.IgnoreNull = true;
+                                    break;
+                                //case "isnullable":
+                                //    fldTemp.IsNullable = true;
+                                //    break;
+                                case "readonly":
+                                    fldTemp.ReadOnly = true;
+                                    break;
+                                default:
+                                    throw new Exception("Unknown field option '" + parts[p] + "' found with field '" + fldNameClean + "'");
+                            }
+                        }
+                    }
+
+                    temporaryFieldInfo[fldNameClean.ToLower()] = fldTemp;
+
+                }
+            }
+        }
+        /// <summary>
+        /// Obtain and process data from a static IQ constructor 
+        /// </summary>
+        private void CallIQConstructor()
+        {
+            IQClassData data = new IQClassData();
+            iqConstructor(data);
+            ProcessConstructorData(data);
+        }
+
+        protected void ProcessConstructorData(IQClassData data)
+        {
+            ISqlQuery query = data.Query;
+            if (query != null)
+            {
+                _Query = query;
+                // Sync the two table names -- TODO fix this, perhaps always create a query instead of having sep.
+                // properties?
+                if (String.IsNullOrEmpty(_Query.TableName))
+                {
+                    _Query.TableName = data.TableName;
+                }
+                else if (String.IsNullOrEmpty(data.TableName))
+                {
+                    data.TableName = _Query.TableName;
+                }
+            }
+            if (!String.IsNullOrEmpty(data.TableName))
+            {
+                if (!String.IsNullOrEmpty(TableName) && TableName.ToLower() != data.TableName.ToLower())
+                {
+                    throw new Exception("A table name was specified in the constructor, but another one was already indetified for the class.");
+                }
+                TableName = data.TableName;
+            }
+            if (!String.IsNullOrEmpty(data.PrimaryKey))
+            {
+                string nameLower = data.PrimaryKey.ToLower();
+                Field fldTemp;
+                if (!temporaryFieldInfo.TryGetValue(nameLower, out fldTemp))
+                {
+                    fldTemp = new Field();
+                    temporaryFieldInfo[nameLower] = fldTemp;
+                    fldTemp.Name = data.PrimaryKey;                       
+                }
+                fldTemp.PK = true;
+            }
+        }
+
+       
+        private void GetClassPropertiesMethods()
+        {
 
             // It's a regular object. It cannot be extended, but set any same-named properties.
-            IEnumerable<MemberInfo> members = type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            IEnumerable<MemberInfo> members = ClassType
+                .GetMembers(BindingFlags.Public | 
+                            BindingFlags.NonPublic | 
+                            BindingFlags.Instance |
+                            BindingFlags.Static);
 
 
-            List<Field> tempList = new List<Field>();
+            //List<Field> tempList = new List<Field>();
 
-            bool hasMap = indexMap.Count > 0;
+            bool hasMap = fieldIndexMap.Count > 0;
 
             foreach (var member in members)
             {
@@ -290,7 +379,8 @@ namespace IQMap.Implementation
                     PropertyInfo prop = (PropertyInfo)member;
 
                     // Skip properties that don't have both read and write methods, and ones with no public get.
-                    if (!prop.CanWrite || !prop.CanRead)
+                    if (!prop.CanWrite || !prop.CanRead ||
+                        !Utils.IsMappableType(prop.PropertyType))
                     {
                         continue;
                     }
@@ -298,28 +388,36 @@ namespace IQMap.Implementation
 
                     string nameLower = prop.Name.ToLower();
 
+                    bool alreadyMapped = true;
                     // Use the fieldmap info if it exists already as a starting point - but override with any attribute data
                     if (!temporaryFieldInfo.TryGetValue(nameLower, out fldTemp)) {
                         fldTemp = new Field();
+                        alreadyMapped = false;
                     }
 
+                    // Always update name from property, even if field was already mapped from constructor
                     fldTemp.Name = prop.Name;
                     fldTemp.PropInfo = prop;
                     fldTemp.HasPublicGetter = prop.GetGetMethod() != null;
 
                     object[] attributes = (object[])member.GetCustomAttributes(true);
                     bool ignore = false;
+                    //bool nullable = false;
 
                     foreach (var attr in attributes)
                     {
                         if (attr is IQIgnore)
                         {
-                            if (fldTemp.InMap)
+                            if (alreadyMapped)
                             {
-                                throw new Exception("The field '" + nameLower + "' is both in the field map, and marked for ignore.");
+                                throw new Exception("The field '" + nameLower + "' is marked for ignore, but has been identified in a constructor alread.");
                             }
                             ignore = true;
                             break;
+                        }
+                        if (attr is IQPrimaryKey)
+                        {
+                            fldTemp.PK = true;
                         }
                         IQField fldAttr=null;
                         
@@ -336,14 +434,18 @@ namespace IQMap.Implementation
                             {
                                 sqlName = fldAttr.SqlName;
                             }
-                            if (fldAttr.IsPrimaryKey )
+                            if (fldAttr.PK )
                             {
                                 fldTemp.PK = true;
                             }
                             if (fldAttr.IgnoreNull)
                             {
-                                fldTemp.ConvertNullToDefault = true;
+                                fldTemp.IgnoreNull = true;
                             }
+                            //if (fldAttr.IsNullable)
+                            //{
+                            //    fldTemp.IsNullable = true;
+                            //}
                             if (fldAttr.ReadOnly)
                             {
                                 fldTemp.ReadOnly = true;
@@ -353,7 +455,7 @@ namespace IQMap.Implementation
                     }
                     if (!ignore)
                     {
-                        tempList.Add(fldTemp);
+                        temporaryFieldInfo[nameLower] = fldTemp;
                     }
                 }
                 else if (member is MethodInfo)
@@ -367,84 +469,85 @@ namespace IQMap.Implementation
                         {
                             IQEventHandlerMethod = method;
                         }
+                        if (attr is IQConstructor)
+                        {
+                            try
+                            {
+                                iqConstructor = (Action<IQClassData>)Delegate
+                                    .CreateDelegate(typeof(Action<IQClassData>), method);
+                            }
+                            catch
+                            {
+                                throw new Exception("The IQ Constructor must have signature 'static void IQConstructor(IQClassData data)'");
+                            }
+                        }
                     }
                 }
             }
-            // TempList has info on all fields in the class. We don't know until looking through the whole thing if they've
-            // used marker attributes or not. If not, add them all. Ignored ones won't be here.
+        }
 
+        /// <summary>
+        /// Take all the info we've gathered form constructors, parameters, attributes, etc. and build the map
+        /// </summary>
+        protected void MapFromTemporaryFields()
+        {
 
-            foreach (var item in tempList)
+            foreach (var item in temporaryFieldInfo.Values)
             {
                 // Logic: using default (!excludeproperties) handling, anything with a public getter is included automatically.
                 // In addition, only things identified in some way should be included.
                 if ((!ExcludeProperties && item.HasPublicGetter) 
-                    || item.FieldAttr || item.PK || item.InMap)
+                    || item.FieldAttr || item.PK)
                 {
                     string nameLower = item.Name.ToLower();
-                    // Remove & Re-Add if its from the map to preserve case from property names
-                    // TODo clean this up. Don't add to the index up front, create separate list
-                    bool inMap = item.InMap;
-
-                    
-                    Field fld = inMap ? temporaryFieldInfo[nameLower] : item;
 
                     //fieldNames.Add(item.Name);
                     //sqlFieldNames.Add(item.SqlName);
 
                     // use the best SqlName - if not present in the default data source, then get from the property name
-                    string sqlName = String.IsNullOrEmpty(fld.SqlName) ? item.SqlName : fld.SqlName;
+                    string sqlName = String.IsNullOrEmpty(item.SqlName) ? item.Name : item.SqlName;
 
                     IDBFieldInfo fldInfo = new DBFieldInfo(item.PropInfo, sqlName,
-                        isPk:fld.PK,
-                        ignoreNull: fld.ConvertNullToDefault,
-                        isReadOnly: fld.ReadOnly);
+                        isPk: item.PK,
+                        ignoreNull: item.IgnoreNull,
+                        isReadOnly: item.ReadOnly);
 
-                    
-                    if (fld.PK)
+
+                    if (item.PK)
                     {
                         if (PrimaryKey != null)
                         {
                             throw new Exception("A different primary key '" + PrimaryKey.Name +
-                                "' has already been identified, cannot make '" + fld.Name + "' the pk.");
+                                "' has already been identified, cannot make '" + item.Name + "' the pk.");
                         }
                         PrimaryKey = fldInfo;
                     }
-    
                    
                     fieldInfo.Add(fldInfo);
-                    indexMap[nameLower] = fieldInfo.Count - 1;
+                    fieldIndexMap[nameLower] = fieldInfo.Count - 1;
 
                 }
             }
 
-            if (fieldInfo.Count == 0)
-            {
-                throw new Exception("The class has no properties that were mapped to the database.");
-            }
-
-
-            if (PrimaryKey==null)
+            if (PrimaryKey == null && fieldInfo.Count>0)
             {
                 PrimaryKey = fieldInfo[0];
                 ((DBFieldInfo)fieldInfo[0]).IsPrimaryKey = true;
-
             }
 
             temporaryFieldInfo = null;
-
         }
         struct Field
         {
             public string Name;
             public string SqlName;
-            public bool InMap;
             public bool ReadOnly;
             public bool FieldAttr;
             public bool PK;
             public bool HasPublicGetter;
-            public bool ConvertNullToDefault;
+            public bool IgnoreNull;
             public PropertyInfo PropInfo;
+            //public bool IsNullable;
         }
         #endregion
     }

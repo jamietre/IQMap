@@ -48,7 +48,7 @@ namespace IQMapTest
         public void TestStrongType()
         {
             var guid = Guid.NewGuid();
-            IEnumerable<Dog> dog = IQ.Connection.LoadMultiple<Dog>("select Age = @Age, Id = @Id", new { Age = (int?)null, Id = guid });
+            IEnumerable<Dog> dog = IQ.Connection.Select<Dog>("select Age = @Age, Id = @Id", new { Age = (int?)null, Id = guid });
 
             Assert.AreEqual(1,dog.Count());
             
@@ -66,10 +66,29 @@ namespace IQMapTest
             test.ReadOnlyField = "Changed";
             IQ.Save(test);
 
-            Assert.AreEqual("UPDATE testTable SET StringField='sometext',EnumField=3 WHERE IntField=12345", TC.Controller.LastQuery);
-            Assert.AreEqual(IQEventType.Save | IQEventType.Update, test.CapturedEvent, "Event handler worked.");
+            Assert.AreEqual("UPDATE testTable SET StringField=@StringField,EnumField=@EnumField WHERE IntField=@IntField", TC.Controller.LastQuery);
+            Assert.AreEqual("sometext",TC.Controller.LastParameters.ElementAt(0).Value);
+            Assert.AreEqual(3,TC.Controller.LastParameters.ElementAt(1).Value);
+            Assert.AreEqual(12345, TC.Controller.LastParameters.ElementAt(2).Value);
+
+            Assert.AreEqual(IQEventType.Save | IQEventType.Update | IQEventType.After, test.CapturedEvent, "Event handler worked.");
             Assert.AreEqual(false, test.CapturedDbData.IsDirty("readonlyfield"), "Event handler worked 2.");
             Assert.AreEqual(true, test.WasDirty, "Event handler worked 3.");
+
+
+            DateTime testDateTime = DateTime.Parse("2/12/1922 4:22 AM");
+
+            IQ.Config.OptimizeParameterNames = true;
+            test.EnumField = TestEnum.Val2;
+            test.DateTimeNullableField = testDateTime;
+            test.StringField = "changed again";
+            IQ.Save(test);
+
+            Assert.AreEqual("UPDATE testTable SET StringField=@p0,DateTimeNullableField=@p1,EnumField=@p2 WHERE IntField=@p3", TC.Controller.LastQuery);
+            Assert.AreEqual("changed again", TC.Controller.LastParameters.ElementAt(0).Value);
+            Assert.AreEqual(testDateTime, TC.Controller.LastParameters.ElementAt(1).Value);
+            Assert.AreEqual(2, TC.Controller.LastParameters.ElementAt(2).Value);
+
         }
     }
 }

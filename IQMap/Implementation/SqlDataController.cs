@@ -11,26 +11,70 @@ namespace IQMap.Implementation
 {
     public class SqlDataController: IDataController
     {
+        #region constructors
+
+        /// <summary>
+        /// Create using the default MSSQL Data Storage Controller
+        /// </summary>
+        public SqlDataController()
+        {
+            StorageController = new MSSQLDataStorageController();
+        }
         public SqlDataController(IDataStorageController storageController) {
             StorageController = storageController;
         }
+        #endregion
+
+        #region private properties
+
         protected IDataStorageController StorageController;
 
+        #endregion
+
+        #region public methods
+
+        public IEnumerable<T> RunStoredProcedure<T>(string spName, params object[] parameters)
+        {
+            ParameterParser pp = new ParameterParser(spName, IQSqlDirectiveType.StoredProcedure,parameters);
+
+            IDataReader reader = StorageController.RunStoredProcedure(pp.Connection, spName,pp.Parameters,-1,-1,pp.Transaction,pp.CommandBehavior);
+            return reader.MapAll<T>(pp.Buffered);
+        }
         public IDbConnection GetConnection(string connectionString)
         {
             return StorageController.GetConnection(connectionString);
         }
-
-        public bool Save(IDbConnection connection, object obj)
+        /// <summary>
+        /// options may include: an IDbConnection, an IDbTransaction, CommandBehavior. Save queries should not 
+        /// include any other parameters
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <param name="options"></param>
+        /// <returns></returns>
+        public bool Save(object obj, params object[] options)
         {
-            IDBObjectData dbData = IQ.DBData(obj);
+            ParameterParser pp = new ParameterParser("",options);
+            if (pp.Parameters.Count > 0)
+            {
+                throw new IQException("The only allowed parameters for a Save are IDbConnection, IDbTransaction, and CommandBehavior");
+            }
 
+            IDBObjectData dbData = IQ.DBData(obj);
  	        DBClassInfo info = dbData.ClassInfo;
+            
+            IQEventType eventType = IQEventType.Save;
+            var eventHandler = dbData.IQEventHandlerFunc;
+            if (eventHandler != null)
+            {
+                eventHandler(eventType | IQEventType.Before, dbData);
+            }
+
 
             QueryType queryType = dbData.IsNew() ? QueryType.Insert : QueryType.Update;
-            ISqlQuery query = new SqlQuery(queryType);
+
+            ISqlQuery query = IQ.CreateQuery(queryType);
             query.AddFieldMap(info.FieldNameMap);
-            query.From = dbData.TableName;
+            query.TableName = dbData.TableName;
 
             bool isDirty=false;
             bool isNew = dbData.IsNew();
@@ -48,14 +92,18 @@ namespace IQMap.Implementation
             }
             
             bool success = false;
-            IQEventType eventType= IQEventType.Save;
+
+
+
             if (isDirty)
             {
 
                 if (queryType == QueryType.Insert)
                 {
                     eventType |= IQEventType.Insert;
-                    int newPK = StorageController.RunQueryScalar(connection,query.GetQuery());
+
+                    int newPK = StorageController.RunQueryInsert(pp.Connection,query.GetQuery(),query.Parameters,
+                        transaction: pp.Transaction);
                     if (newPK<=0)
                     {
                         throw new Exception("The record could not be inserted.");
@@ -66,39 +114,42 @@ namespace IQMap.Implementation
                 else
                 {
                     eventType |= IQEventType.Update;
-                    query.AddWhere(dbData.ClassInfo.PrimaryKey.Name, dbData.ClassInfo.PrimaryKey.GetValue(obj));
-                    success = StorageController.RunQueryScalar(connection, query.GetQuery()) > 0;
+
+                    query.AddWhereParam(dbData.ClassInfo.PrimaryKey.Name, dbData.ClassInfo.PrimaryKey.GetValue(obj));
+                    success = StorageController.RunQueryScalar(pp.Connection, query.GetQuery(),query.Parameters, 
+                        transaction: pp.Transaction) > 0;
                 }
             } else {
                 success=false;
             }
 
-            var eventHandler = dbData.IQEventHandlerFunc;
 
             if (eventHandler != null)
             {
-                eventHandler(eventType, dbData);
+                eventHandler(eventType | IQEventType.After, dbData);
             }
 
             if (success) {
                 dbData.Clean();
             }
+
+            if (pp.CommandBehavior == CommandBehavior.CloseConnection)
+            {
+                pp.Connection.Close();
+            }
             return success;
         }
+       
 
 
-        public T LoadPK<T>(IDbConnection connection, IConvertible primaryKeyValue) where T : new()
+        public T Single<T>(object query, params object[] parameters)
         {
-            T obj = new T();
-            string pkName=IQ.CreateDBData(obj).ClassInfo.PrimaryKey.Name;
-
-            string error = LoadSingleInto<T>(connection,obj, pkName+"="+"@"+pkName,"@"+pkName,primaryKeyValue);
-           
-            if (!string.IsNullOrEmpty(error))
+            T target;
+            if (!TryGetSingle<T>(query,out target,  false, parameters))
             {
-                throw new Exception(error);
+                throw new IQException("No record was record was returned by the Single<T> query");
             }
-            return obj;
+            return target;
         }
 
         /// <summary>
@@ -107,227 +158,154 @@ namespace IQMap.Implementation
         /// <typeparam name="T"></typeparam>
         /// <param name="query"></param>
         /// <returns></returns>
-        public T Load<T>(IDbConnection connection, string query, params object[] parameters)
+        public T FirstOrDefault<T>(object query, params object[] parameters)
         {
-            T obj = Utils.GetInstanceOf<T>();
-            
-            string error;
-
-            IQuery q = new SqlQueryRaw(query, parameters);
-            if (q.QueryType != QueryType.Invalid) {
-                error=LoadSingleInto<T>(connection,obj,q);
-
-            } else {
-                // assume it is a where
-                error=LoadSingleInto<T>(connection,obj, query, parameters);
-            }
-
-            if (!string.IsNullOrEmpty(error))
+            T target;
+            TryGetSingle<T>(query, out target, true, parameters);
+            return target;
+        }
+        public T First<T>(object query, params object[] parameters)
+        {
+            T target;
+            if (!TryGetSingle<T>(query,out target, true, parameters))
             {
-                throw new Exception(error);
+                throw new IQException("No record returned by the First<T> query");
             }
-            return obj;
+            return target;
         }
 
-        public int DeletePK<T>(IDbConnection connection, IConvertible primaryKeyValue) where T : new()
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="query"></param>
+        /// <returns></returns>
+        public T SingleOrDefault<T>(object query, params object[] parameters)
         {
-            IDBClassInfo info = IQ.GetClassInfo<T>();
-            string pkName = info.PrimaryKey.Name;
-            string query = "delete from " + info.TableName + " where " + pkName + "=" + "@" + pkName;
-
-            IQuery q = new SqlQueryRaw(query, "@" + pkName, primaryKeyValue);
-            return Delete<T>(connection,q);
+            T target;
+            TryGetSingle<T>(query,out target, false, parameters);
+            return target;
         }
 
-        public int Delete<T>(IDbConnection connection, string query, params object[] parameters) 
-        {
-            var clsInfo = IQ.GetClassInfo<T>();
-
-            IQuery q = new SqlQueryRaw(query, parameters);
-            
-            if (q.QueryType != QueryType.Invalid)
-            {
-                q.From = clsInfo.TableName;
-                return Delete<T>(connection,q);
-            }
-            else
-            {
-                // assume it is a where
-                var deleteQuery = new SqlQuery(QueryType.Delete);
-                deleteQuery.From = clsInfo.TableName;
-                deleteQuery.AddWhere(query);
-                foreach (var parm in q.Parameters) {
-                    deleteQuery.AddParameter(parm);
-                }
-
-                return Delete<T>(connection,deleteQuery);
-            
-            }
-        }
-
-
-        private int Delete<T>(IDbConnection connection, IQuery query)
-        {
-             return StorageController.RunQueryScalar(connection,query.GetQuery(),query.Parameters);
-        }
-
-        public bool TryLoad<T>(IDbConnection connection, string query, out T obj, params object[] parameters)
+        public int Delete<T>(object query, params object[] parameters) 
         {
 
-            T target = Utils.GetInstanceOf<T>();
+            var wrapper = new SqlQueryParser<T>(QueryType.Delete, query, parameters);
+            return wrapper.RunQueryScalar(StorageController);
 
-            string error = LoadSingleInto<T>(connection,target,query, parameters);
-            if (!string.IsNullOrEmpty(error))
-            {
-                obj = default(T);
-                return false;
-            }
-            else
-            {
-                obj = target;
-                return true;
-            }
         }
 
-        public bool TryLoadPK<T>(IDbConnection connection, IConvertible primaryKeyValue, out T obj) where T : new()
+        public bool TrySingle<T>(object query, out T target, params object[] parameters)
         {
-            T target = new T();
-            string error = LoadSingleInto<T>(connection,target, IQ.CreateDBData(target).ClassInfo.PrimaryKey.Name, primaryKeyValue);
-            if (!string.IsNullOrEmpty(error))
-            {
-                obj = default(T);
-                return false;
-            }
-            else
-            {
-                obj = target;
-                return true;
-            }
+            return TryGetSingle<T>(query,out target, false, parameters);
         }
-
-        public IEnumerable<T> LoadMultiple<T>(IDbConnection connection, string query, bool buffered, params object[] parameters) 
+        public bool TrySingle<T>(object query, T target, params object[] parameters)
         {
-            return connection.Query(query, parameters).MapAll<T>(buffered);
+            return TryGetSingle<T>(query,target,  false, parameters);
         }
-        //protected IEnumerable<T> LoadMultiple<T>(IDbConnection connection, IQuery query, bool buffered)
-        //{
-        //    return connection.
-        //    using (IDataReader reader = StorageController.RunQuery(connection, query.GetQuery(), query.Parameters))
-        //    {
-        //        while (reader.Read())
-        //        {
-
-        //            T target = reader.Map<T>();
-        //            yield return target;
-        //        }
-        //    }
-        //}
-
-        public IDataReader Query(IDbConnection connection, string query, params object[] parameters)
+        public IEnumerable<T> Select<T>(object query,params object[] parameters) 
         {
-            SqlQueryRaw q = new SqlQueryRaw(query, parameters);
-            return StorageController.RunQuery(connection,q.GetQuery(),q.Parameters);
+            var wrapper = new SqlQueryParser<T>( QueryType.Select, query, parameters);
+            return wrapper.RunQuery(StorageController).MapAll<T>(wrapper.Buffered);
         }
 
-        public int QueryScalar(IDbConnection connection, string query, params object[] parameters)
+        public int Count<T>(object query,params object[] parameters) 
         {
-            SqlQueryRaw q = new SqlQueryRaw(query, parameters);
-            return StorageController.RunQueryScalar(connection,q.GetQuery(),q.Parameters);
+            var wrapper = new SqlQueryParser<T>(QueryType.Select, query, parameters);
+            return StorageController.Count(wrapper.Connection, wrapper.Query.GetQuery(), wrapper.Query.Parameters);
         }
 
+        public IDataReader Query(string query, params object[] parameters)
+        {
+            var wrapper = new SqlQueryParser<object>(0, query, parameters);
+            return wrapper.RunQuery(StorageController);
+        }
+
+        public int QueryScalar(string query, params object[] parameters)
+        {
+            var wrapper = new SqlQueryParser<object>( 0, query, parameters);
+            return wrapper.RunQueryScalar(StorageController);
+        }
+
+        #endregion
 
         #region private methods
 
-        /// <summary>
-        /// returns nu
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="target"></param>
-        /// <param name="fieldName"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
-
-        protected string LoadSingleInto<T>(IDbConnection connection, T target, string query, params object[] parameters)
+        protected bool TryGetSingle<T>(
+            object query, 
+            out T target, 
+            bool ignoreExtraRows, 
+            params object[] parameters)
         {
-            IDBObjectData dbData = IQ.DBData(target);
-            DBClassInfo info = dbData.ClassInfo;
-            IQuery temp = new SqlQueryRaw(query, parameters);
-            IQuery selectQuery;
+            var wrapper = new SqlQueryParser<T>(QueryType.Select, query, parameters);
+            wrapper.ExpectSelectQuery();
 
-            if (temp.QueryType == QueryType.Invalid)
+            T output=default(T);
+            bool looped = false;
+            using (IDataReader reader = wrapper.RunQuery(StorageController))
             {
-                // assume that query is a where clause
-                
-                ISqlQuery newQuery = new SqlQuery(QueryType.Select);
-                newQuery.AddFieldMap(info.FieldNameMap);
-                newQuery.Select = String.Join(",", info.SqlNames);
-                newQuery.From = dbData.TableName;
-                newQuery.AddWhere(query);
-                foreach (var parm in temp.Parameters)
-                {
-                    newQuery.AddParameter(parm);
-                }
-                selectQuery = newQuery;
-            }
-            else
-            {
-                selectQuery = temp;
-            }
-
-
-
-            return LoadSingleInto<T>(connection,target, selectQuery);
-        }
-
-
-        protected string LoadSingleInto<T>(IDbConnection connection, T target, IQuery query) 
-        {
-            if (query.QueryType != QueryType.Select)
-            {
-                throw new Exception("You can only use a SELECT query to load data into an object.");
-            }
-
-            string error = "No match found";
-            using (IDataReader reader = StorageController.RunQuery(connection,query.GetQuery(),query.Parameters))
-            {
-                bool looped = false;
                 while (reader.Read())
                 {
                     if (looped)
                     {
-                        error = "Multuple records found for primary key select.";
+                        throw new IQException("More than one record was returned by the Single<T> query");
+                    }
+                    output = reader.Map<T>();
+                    looped = true;
+                    if (ignoreExtraRows)
+                    {
                         break;
+                    }
+                }
+            }
+            if (!looped)
+            {
+                target = (T)Utils.DefaultValue(typeof(T));
+                return false;
+            } else {
+                target = output;
+                return true;
+            }
+        }
+        /// <summary>
+        /// Map to an existing instance
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="connection"></param>
+        /// <param name="query"></param>
+        /// <param name="ignoreExtraRows"></param>
+        /// <param name="target"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        protected bool TryGetSingle<T>(
+          object query,
+          T target,
+          bool ignoreExtraRows,
+          params object[] parameters)
+        {
+            var wrapper = new SqlQueryParser<T>(QueryType.Select, query, parameters);
+            wrapper.ExpectSelectQuery();
+
+            bool looped = false;
+            using (IDataReader reader = wrapper.RunQuery(StorageController))
+            {
+                while (reader.Read())
+                {
+                    if (looped)
+                    {
+                        throw new IQException("More than one record was returned by the Single<T> query");
                     }
                     reader.Map(target);
                     looped = true;
+                    if (ignoreExtraRows)
+                    {
+                        break;
+                    }
                 }
-                error = "";
             }
-
-            return error;
+            return looped;
         }
-
-
-
-
-
-
-        //private static HashSet<string> supportedTypes = new HashSet<string>(new string[] {
-        //        "bit","bigint","int","smallint","float","decimal","money","smallmoney","date",
-        //        "datetime","datetime2","datetimeoffset","varchar","nvarchar","text","ntext",
-        //        "real","numeric","smalldatetime","time","timestamp","tinyint"
-        //    });
-        //private bool IsSupportedSqlType(string sqlType)
-        //{
-        //    return supportedTypes.Contains(sqlType.ToLower());
-        //}
-        //private bool IsNullableSqlType(object sqlType)
-        //{
-        //    return true;
-        //}
-
        
-
         #endregion
 
 

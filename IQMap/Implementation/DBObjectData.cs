@@ -18,29 +18,33 @@ namespace IQMap.Implementation
         /// <param name="tableName"></param>
         /// <param name="fieldList"></param>
 
-        public DBObjectData(object owner, string tableName="", string mappedFields="")
+        public DBObjectData(object owner, IQClassData data=null)
         {
             OwnerRef = new WeakReference(owner);
-            ClassInfo = GetClassInfo(owner.GetType(), tableName,mappedFields);
+            ClassInfo = GetClassInfo(owner.GetType(), data);
             TableName = ClassInfo.TableName;
             if (ClassInfo.IQEventHandlerMethod != null)
             {
                 IQEventHandlerFunc = (Action<IQEventType, IDBObjectData>)Delegate
                                     .CreateDelegate(typeof(Action<IQEventType, IDBObjectData>), owner, ClassInfo.IQEventHandlerMethod);
             }
+            Clean();
         }
 
         private static ConcurrentDictionary<Type, DBClassInfo> ClassInfoCache
             = new ConcurrentDictionary<Type, DBClassInfo>();
 
-        public static DBClassInfo GetClassInfo(Type type, string tableName="",string mappedFields="")
+        public static DBClassInfo GetClassInfo(Type type, IQClassData data=null)
         {
             DBClassInfo classInfo;
-
+            if (!type.IsClass)
+            {
+                throw new IQException("You can't get ClassInfo for a value type.");
+            }
             if (!ClassInfoCache.TryGetValue(type, out classInfo))
             {
                 classInfo = new DBClassInfo();
-                classInfo.MapClass(type, tableName, mappedFields);
+                classInfo.MapClass(type, data);
                 ClassInfoCache[type] = classInfo;
             }
             return classInfo;
@@ -70,6 +74,20 @@ namespace IQMap.Implementation
         #endregion
 
         #region public properties
+        
+        public IEnumerable<string> DirtyFieldNames
+        {
+            get
+            {
+                for (int i = 0; i < initialValues.Count; i++)
+                {
+                    if (IsDirty(i))
+                    {
+                        yield return ClassInfo.FieldNames[i];
+                    }
+                }
+            }
+        }
 
         public IConvertible PrimaryKeyValue {
             get
@@ -118,6 +136,10 @@ namespace IQMap.Implementation
         #endregion
 
         #region public methods
+        public static void ClearCache()
+        {
+            ClassInfoCache.Clear();
+        }
         public void SetPrimaryKey(IConvertible value)
         {
             ClassInfo.PrimaryKey.SetValue(Owner, value);
@@ -129,6 +151,13 @@ namespace IQMap.Implementation
             foreach (var fieldName in ClassInfo.FieldNames)
             {
                 initialValues.Add(ClassInfo[fieldName].GetValue(OwnerRef.Target));
+            }
+        }
+        public void Reset()
+        {
+            foreach (var fieldName in ClassInfo.FieldNames)
+            {
+                ClassInfo[fieldName].SetValue(OwnerRef.Target,initialValues[ClassInfo.FieldIndex(fieldName)]);
             }
         }
         public bool IsNew()
@@ -174,20 +203,30 @@ namespace IQMap.Implementation
             }
 
         }
-        public IEnumerable<string> DirtyFieldNames
+
+        public object Clone()
         {
-            get
+            object clone = Utils.GetInstanceOf(Owner.GetType());
+            var dbData = IQ.CreateDBData(clone);
+            CopyTo(clone);
+            dbData.Clean();
+            return clone;
+        }
+
+        public void CopyTo(object destination)
+        {
+            if (Owner.GetType() != destination.GetType())
             {
-                for (int i = 0; i < initialValues.Count; i++)
-                {
-                    if (IsDirty(i))
-                    {
-                        yield return ClassInfo.FieldNames[i];
-                    }
-                }
+                throw new IQException("The target object type was not '" + Owner.GetType() + "'");
+            }
+            var targetDBData = IQ.DBData(destination);
+
+            foreach (var info in ClassInfo.FieldInfo)
+            {
+                info.SetValue(destination, info.GetValue(Owner));
             }
         }
-       
+
         #endregion
 
 

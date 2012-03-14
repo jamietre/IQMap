@@ -8,31 +8,29 @@ using IQMap;
 
 namespace IQMapTest
 {
-    [IQClass(TableName="testTable",ExcludeProperties=true)]
-    public class TestObject : IQObject
+    public class TestObjectConstructor 
     {
-        public TestObject()
+        [IQConstructor]
+        private static void IQConstructor(IQClassData data)
         {
-           
+
+            var query = data.Query;
+            query.Select = "PK,FirstName,HowMuch";
+            query.From = "testTableConstructorView";
+            query.Where = "defaultWhere=1";
+
+            data.PrimaryKey = "PK";
+            data.TableName = "testTableConstructor";
+
         }
 
-        [IQField(PK= true)]
         public int PK { get; protected set; }
-
-        [IQField]
         public string FirstName { get; set; }
-
-        [IQField]
         public float HowMuch { get; set; }
-        
-        [IQField]
         public DateTime UpdateDate { get; set; }
-        
-        [IQField] 
         public long SomeNumber { get; set; }
-
+        
+        [IQIgnore]
         public string NotAField { get; set; }
-
-
     }
 }

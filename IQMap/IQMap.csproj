@@ -34,6 +34,22 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -44,27 +60,36 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AttributesEnums\Buffered.cs" />
+    <Compile Include="AttributesEnums\SqlDirectiveType.cs" />
+    <Compile Include="AttributesEnums\IQConstructor.cs" />
+    <Compile Include="AttributesEnums\IQPrimaryKey.cs" />
     <Compile Include="AttributesEnums\IQEventHandler.cs" />
     <Compile Include="AttributesEnums\IQIgnore.cs" />
     <Compile Include="AttributesEnums\SqlQuery.cs" />
+    <Compile Include="Exceptions\IQMissingQueryException.cs" />
+    <Compile Include="Exceptions\IQException.cs" />
     <Compile Include="ExtensionMethods\IDbConnectionExtensions.cs" />
     <Compile Include="ExtensionMethods\IDataReaderExtensions.cs" />
     <Compile Include="IDBClassInfo.cs" />
     <Compile Include="IDBFieldInfo.cs" />
+    <Compile Include="Implementation\ParameterParser.cs" />
+    <Compile Include="IQObject.cs" />
     <Compile Include="Implementation\Config.cs" />
     <Compile Include="Implementation\EngineSpecific\MSSQLDataStorageController.cs" />
+    <Compile Include="Implementation\SqlQueryParser.cs" />
+    <Compile Include="IQClassData.cs" />
     <Compile Include="Implementation\QueryParameter.cs" />
     <Compile Include="IQ.cs" />
     <Compile Include="Implementation\DBClassInfo.cs" />
     <Compile Include="AttributesEnums\IQField.cs" />
     <Compile Include="Implementation\DBFieldInfo.cs" />
-    <Compile Include="AttributesEnums\IQMetaData.cs" />
+    <Compile Include="AttributesEnums\IQClass.cs" />
     <Compile Include="Implementation\DBObjectData.cs" />
-    <Compile Include="IDatabaseBoundObject.cs" />
     <Compile Include="IDataController.cs" />
     <Compile Include="IDataStorageController.cs" />
     <Compile Include="IDBObjectData.cs" />
-    <Compile Include="ExtensionMethods\IDatabaseBoundObjectExtensions.cs" />
+    <Compile Include="ExtensionMethods\IQObjectExtensions.cs" />
     <Compile Include="Implementation\ParameterWhereCriterion.cs" />
     <Compile Include="Implementation\EngineSpecific\SortCriterion.cs" />
     <Compile Include="Implementation\SqlDataStorageController.cs" />

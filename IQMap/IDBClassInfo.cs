@@ -16,6 +16,11 @@ namespace IQMap
         /// When true, queryies will not attempt to select individual fields but use *.
         /// </summary>
         bool SelectAll { get; }
+        /// <summary>
+        /// The base query
+        /// </summary>
+        ISqlQuery Query(QueryType type);
+
         object PrimaryKeyDefaultValue { get; }
 
         IList<IDBFieldInfo> FieldInfo { get; }
@@ -34,6 +39,7 @@ namespace IQMap
 
         int FieldIndex(string fieldName);
         string SqlName(string fieldName);
+        bool HasField(string fieldName);
         IDBFieldInfo GetFieldInfo(string fieldName);
         bool TryGetFieldInfo(string fieldName, out IDBFieldInfo info);
         

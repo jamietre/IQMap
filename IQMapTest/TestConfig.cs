@@ -20,7 +20,8 @@ namespace IQMapTest
         {
             Controller = new TestDataStorageController();
             IQ.Config.DataController = new SqlDataController(Controller);
-            IQ.Config.DefaultConnectionString = "Data Source=vmsqlmd01;Initial Catalog=tempdb;Integrated Security=True";
+            //IQ.Config.DefaultConnectionString = "Data Source=LENOVO3\\SQLEXPRESS;Initial Catalog=tempdb;Integrated Security=True";
+            IQ.Config.DefaultConnectionString = "Data Source=VMSQLMD01;Initial Catalog=tempdb;Integrated Security=True";
         }
         #region static methods
 

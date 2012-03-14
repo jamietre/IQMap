@@ -12,11 +12,19 @@ namespace IQMap
 {
     public static class Utils
     {
+        public static IEnumerable<T> EmptyEnumerable<T>()
+        {
+            yield break;
+        }
+        /// <summary>
         // return an instance of an object or value type
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
         public static T GetInstanceOf<T>() {
                     
             T obj;
-            if (IsValuelikeType<T>())
+            if (IsMappableType<T>())
             {
                 obj = default(T);
             }
@@ -32,7 +40,31 @@ namespace IQMap
             
             return obj;
         }
-        
+        /// <summary>
+        // return an instance of an object or value type
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        public static object GetInstanceOf(Type type)
+        {
+
+            object obj;
+            if (IsMappableType(type))
+            {
+                obj = Utils.DefaultValue(type);
+            }
+            else
+            {
+                obj = Activator.CreateInstance(type);
+                // We have special handling for Expando-like objects -- don't create metadata for them
+                if (!(obj is IDictionary<string, object>))
+                {
+                    IQ.CreateDBData(obj);
+                }
+            }
+
+            return obj;
+        }
         public static object DefaultValue(Type type)
         {
             return type.IsValueType ? Activator.CreateInstance(type) : null;
@@ -285,7 +317,7 @@ namespace IQMap
         }
         private static bool IsNumericBaseType(Type type)
         {
-            return type.IsPrimitive && !(type == typeof(string) || type == typeof(char) || type == typeof(bool));
+            return type.IsValueType && !(type == typeof(string) || type == typeof(char) || type == typeof(bool) || type == typeof(DateTime));
         }
         /// <summary>
         /// Return the proper type for an object (ignoring nullability)
@@ -306,18 +338,33 @@ namespace IQMap
 
         }
         /// <summary>
-        /// True if primitive, value type, or string
+        /// The type is a class that can have metadata associated with it.
         /// </summary>
+        /// <typeparam name="T"></typeparam>
         /// <returns></returns>
-        public static bool IsValuelikeType<T>()
+        public static bool IsMappableClass<T>()
         {
-            return IsValuelikeType(typeof(T));
+            Type t = GetUnderlyingType(typeof(T));
+            return t.IsClass && t!=typeof(string);
         }
-        public static bool IsValuelikeType(Type t)
+        /// <summary>
+        /// If the type can be the direct target of the map.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        public static bool IsMappableType<T>()
         {
-            return t == typeof(string) || t.IsValueType || t.IsPrimitive;
+            return IsMappableType(typeof(T));
         }
-
+        public static bool IsMappableType(object obj)
+        {
+            return IsMappableType(obj.GetType());
+        }
+        public static bool IsMappableType(Type type)
+        {
+            Type t = GetUnderlyingType(type);
+            return t.IsEnum || t.IsValueType || t.IsPrimitive || t == typeof(string) || t == typeof(byte[]);
+        }
         public static bool IsNullableType(Type type)
         {
             return type == typeof(string) ||
@@ -332,62 +379,123 @@ namespace IQMap
             }
             return cleanSql;
         }
-
+        
         /// <summary>
         /// Locate all named parameters in a query
         /// </summary>
         /// <param name="sql"></param>
         /// <returns></returns>
-        public static IEnumerable<Tuple<string,int,int>> GetParameterNames(string sql)
+        public static HashSet<string> GetParameterNames(string sql)
         {
-            int pos = 0;
-            bool quoted = false;
-            while (pos >= 0)
-            {
-                char cur = sql[pos];
-                if (!quoted)
-                {
-                    if (cur == '\'')
-                    {
-                        quoted = true;
-                    }
-                    else
-                    {
 
-                        if (cur == '@')
+            HashSet<string> parameterNames = new HashSet<string>( new ParmNameComparer());
+            if (!string.IsNullOrEmpty(sql))
+            {
+
+                int pos = 0;
+                bool quoted = false;
+                while (pos >= 0)
+                {
+                    char cur = sql[pos];
+                    if (!quoted)
+                    {
+                        if (cur == '\'')
                         {
-                            int curIndex = pos;
-                            int nextIndex = GetParameterNameStop(sql, pos + 1);
-                            if (nextIndex < 0)
+                            quoted = true;
+                        }
+                        else
+                        {
+
+                            if (cur == '@')
                             {
-                                yield return new Tuple<string, int,int>(sql.Substring(curIndex), curIndex, sql.Length - pos);
-                            }
-                            else
-                            {
-                                int len =  nextIndex - curIndex;
-                                yield return new Tuple<string, int, int>(sql.Substring(curIndex, len), curIndex, len);
+                                int curIndex = pos;
+                                int nextIndex = GetParameterNameStop(sql, pos + 1);
+                                string parmName;
+                                if (nextIndex < 0)
+                                {
+                                    // yield return new Tuple<string, int,int>(sql.Substring(curIndex), curIndex, sql.Length - pos);
+                                    parmName=(sql.Substring(curIndex));
+                                }
+                                else
+                                {
+                                    int len = nextIndex - curIndex;
+                                    parmName=sql.Substring(curIndex, len);
+                                }
+                                parameterNames.Add(parmName);
                             }
                         }
                     }
-                }
-                else
-                {
-                    if (cur == '\'')
+                    else
                     {
-                        quoted = false;
-                    }
+                        if (cur == '\'')
+                        {
+                            quoted = false;
+                        }
 
-                }
-                if (pos + 1 < sql.Length)
-                {
-                    pos = sql.IndexOf("@", pos + 1);
-                }
-                else
-                {
-                    pos = -1;
+                    }
+                    if (pos + 1 < sql.Length)
+                    {
+                        pos = sql.IndexOf("@", pos + 1);
+                    }
+                    else
+                    {
+                        pos = -1;
+                    }
                 }
             }
+            return parameterNames;
         }
+        //public static IEnumerable<Tuple<string,int,int>> GetParametexrNames(string sql)
+        //{
+        //    HashSet<Tuple<string,int,int>>
+        //    int pos = 0;
+        //    bool quoted = false;
+        //    while (pos >= 0)
+        //    {
+        //        char cur = sql[pos];
+        //        if (!quoted)
+        //        {
+        //            if (cur == '\'')
+        //            {
+        //                quoted = true;
+        //            }
+        //            else
+        //            {
+
+        //                if (cur == '@')
+        //                {
+        //                    int curIndex = pos;
+        //                    int nextIndex = GetParameterNameStop(sql, pos + 1);
+        //                    if (nextIndex < 0)
+        //                    {
+        //                        yield return new Tuple<string, int,int>(sql.Substring(curIndex), curIndex, sql.Length - pos);
+        //                    }
+        //                    else
+        //                    {
+        //                        int len =  nextIndex - curIndex;
+        //                        yield return new Tuple<string, int, int>(sql.Substring(curIndex, len), curIndex, len);
+        //                    }
+        //                }
+        //            }
+        //        }
+        //        else
+        //        {
+        //            if (cur == '\'')
+        //            {
+        //                quoted = false;
+        //            }
+
+        //        }
+        //        if (pos + 1 < sql.Length)
+        //        {
+        //            pos = sql.IndexOf("@", pos + 1);
+        //        }
+        //        else
+        //        {
+        //            pos = -1;
+        //        }
+        //    }
+        //}
         /// <summary>
         /// Assuming startPos is inside a parameter name in an sql query, returns the first character position falling
         /// outside the parameter name by looking for characters that are not valid in a name.
@@ -397,7 +505,25 @@ namespace IQMap
         /// <returns></returns>
         private static int GetParameterNameStop(string sql, int startPos = 0)
         {
-            return sql.IndexOfAny(" =<>!.;:\r\n\t".ToCharArray(), startPos);
+            return sql.IndexOfAny(" (),=<>!.;:\r\n\t".ToCharArray(), startPos);
+        }
+        private class ParmNameComparer : IEqualityComparer<string>
+        {
+            public ParmNameComparer()
+            {
+                caseSensitive = IQ.Config.ParametersCaseSensitive;
+            }
+            protected bool caseSensitive;
+            public bool Equals(string x, string y)
+            {
+                return caseSensitive ? x.Equals(y, StringComparison.CurrentCultureIgnoreCase) :
+                    x.Equals(y, StringComparison.CurrentCulture);
+            }
+
+            public int GetHashCode(string obj)
+            {
+                return obj.GetHashCode();
+            }
         }
     }
 }

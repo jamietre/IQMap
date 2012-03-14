@@ -17,14 +17,18 @@ namespace IQMap.Implementation
             GCTimer.Elapsed += new ElapsedEventHandler(GCTimer_Elapsed);
             GCTimer.Start();
 
-        }
+            ParametersCaseSensitive = false;
 
+        }
+        
         private static Timer GCTimer;
         private static IDataController _DataController;
 
         public static Dictionary<Type, DbType> DbTypeMap;
 
         #region public properties
+        
+        public bool ParametersCaseSensitive { get; set; }
         public event EventHandler GCTime;
 
         /// <summary>
@@ -50,12 +54,9 @@ namespace IQMap.Implementation
             get;
             set;
         }
-        public IDbConnection DefaultConnection
+        public IDbConnection GetConnection()
         {
-            get
-            {
-                return DataController.GetConnection(DefaultConnectionString);
-            }
+            return DataController.GetConnection(DefaultConnectionString);
         }
         /// <summary>
         /// Default data controller used for new objects. 
@@ -78,7 +79,11 @@ namespace IQMap.Implementation
 
 
         }
-
+        /// <summary>
+        /// When true, automatically-generated parameters will use short names
+        /// </summary>
+        public bool OptimizeParameterNames
+        { get; set; }
         #endregion
 
 

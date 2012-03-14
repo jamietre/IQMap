@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Data;
+using System.Data.Linq;
+using System.Data.Linq.Mapping;
 using System.Dynamic;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -28,11 +30,11 @@ namespace IQMapTest
             TestObject obj;
             try
             {
-                obj= IQ.LoadPK<TestObject>(101);
+                obj= IQ.First<TestObject>(101);
             }
             catch { }
 
-            Assert.AreEqual("SELECT PK,FirstName,HowMuch,UpdateDate,SomeNumber FROM testTable WHERE (PK=@PK)",TC.Controller.LastQuery, "Query looks good");
+            Assert.AreEqual("SELECT PK,FirstName,HowMuch,UpdateDate,SomeNumber FROM testTable WHERE PK=@PK",TC.Controller.LastQuery, "Query looks good");
             Assert.AreEqual(1, TC.Controller.LastParameters.Count(), "One parm was created");
             Assert.AreEqual(101, TC.Controller.LastParameters.ElementAt(0).Value, "Value for parm is correct");
             Assert.AreEqual("@PK", TC.Controller.LastParameters.ElementAt(0).ParameterName, "Value for parm is correct");
@@ -40,7 +42,7 @@ namespace IQMapTest
             DateTime curDate = DateTime.Now;
             try
             {
-                obj = IQ.Load<TestObject>("select * FROM testTable where UpdateDate<@now", curDate);
+                obj = IQ.First<TestObject>("select * FROM testTable where UpdateDate<@now", curDate);
             }
             catch { }
 
@@ -59,7 +61,17 @@ namespace IQMapTest
             dynamic obj1 = expandoList.First();
             Assert.AreEqual(IQMapTest.TestConfig.SampleData[typeof(string)], obj1.FirstName, "First name was not null.");
 
-        }     
+        }
+
+        //[TestMethod]
+        //public void LinqToSql()
+        //{
+        //    IEnumerable<int> test;
+            
+
+                
+
+        //}
 
     }
 }

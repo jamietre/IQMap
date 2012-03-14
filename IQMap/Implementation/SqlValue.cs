@@ -80,17 +80,18 @@ namespace IQMap.Implementation
                         SqlDataFormat = SqlDataFormat.Numeric;
                         Value = Convert.ToInt32(value);
                     }
+                    else if (typeof(DateTime).IsAssignableFrom(Utils.GetUnderlyingType(type)))
+                    {
+                        SqlDataFormat = SqlDataFormat.DateTime;
+                    }
                     else if (Utils.IsNumericType(type))
                     {
+                        // Note that IsNumeric
                         SqlDataFormat = SqlDataFormat.Numeric;
                     }
                     else if (typeof(string).IsAssignableFrom(type))
                     {
                         SqlDataFormat = SqlDataFormat.String;
-                    }
-                    else if (typeof(DateTime).IsAssignableFrom(Utils.GetUnderlyingType(type)))
-                    {
-                        SqlDataFormat = SqlDataFormat.DateTime;
                     }
                     else if (type == typeof(bool))
                     {
@@ -99,7 +100,8 @@ namespace IQMap.Implementation
                     }
                     else
                     {
-                        SqlDataFormat = SqlDataFormat.Unsupported;
+                        throw new Exception("Unhandled data type: " + type.ToString());
+                        //SqlDataFormat = SqlDataFormat.Unsupported;
                     }
                 }
             }

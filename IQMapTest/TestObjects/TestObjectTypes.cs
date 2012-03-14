@@ -28,10 +28,10 @@ namespace IQMapTest
         public TestEnum EnumField { get; set; }
 
     }
-    [IQMetaData("testTable")]
+    [IQClass("testTable")]
     public class TestObjectTypes2
     {
-        [IQField(IsPrimaryKey=true)]
+        [IQField(PK=true)]
         public int IntField { get; protected set; }
 
         public string StringField { get; set; }

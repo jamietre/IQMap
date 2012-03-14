@@ -9,7 +9,7 @@ namespace IQMap
     public class IQField: Attribute 
     {
         public string SqlName;
-        public bool IsPrimaryKey;
+        public bool PK;
         /// <summary>
         /// When true, data will be loaded from the selection set, but never updated.
         /// </summary>
@@ -18,5 +18,6 @@ namespace IQMap
         /// When true, null values will be mapped to the data type default in 
         /// </summary>
         public bool IgnoreNull;
+        public bool IsNullable;
     }
 }

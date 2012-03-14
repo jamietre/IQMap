@@ -11,7 +11,7 @@ namespace IQMap.Implementation
 
         public QueryParameter(string name, object value)
         {
-            ParameterName = name;
+            ParameterName = name.Substring(0, 1) == "@" ? name : "@" + name;
             Value = value;
 
         }
@@ -73,6 +73,10 @@ namespace IQMap.Implementation
 
         protected virtual DbType GetDBType(Type type)
         {
+            if (type.IsEnum)
+            {
+                return DbType.Int32;
+            }
             Type t = Utils.GetUnderlyingType(type);
             DbType dbType;
             if (Config.DbTypeMap.TryGetValue(t, out dbType))

@@ -11,10 +11,15 @@ namespace IQMap
     public interface ISqlQuery: IQuery
     {
 
+        string TableName { get; set; }
+
+        new ISqlQuery Clone();
+        new ISqlQuery Clone(QueryType type);
+
         //SqlFieldMap sqlFieldMap { get; }
         void AddFieldMap(string fieldName, string value);
         void ClearFieldMap();
-        string Select {get;set;}
+
         
         /// <summary>
         /// A list of fields in an Insert or Update query
@@ -24,9 +29,7 @@ namespace IQMap
         string UpdateSet { get; }
         string InsertFields { get; }
         string InsertValues { get; }
-        string Where {get;set;}
-        string OrderBy { get; set; }
-        string GroupBy { get; set; }
+
 
         /// <summary>
         /// Add a field/value pair to be included in an update query.
@@ -36,10 +39,10 @@ namespace IQMap
         /// <returns></returns>
         ISqlQuery AddUpdateData(string fieldName, object value);
 
-        ISqlQuery AddParameter(IDataParameter parameter);
+        
         ISqlQuery AddParameter(string name, object value);
         ISqlQuery AddParameter(IEnumerable<IDataParameter> parameterList);
-        ISqlQuery AddWhere(string condition);
+
         ISqlQuery AddWhere(string fieldName,object value);
         ISqlQuery AddWhere(string fieldName, object value, ComparisonType comparisonType);
         ISqlQuery AddWhereParam(string fieldName, object value);
@@ -53,7 +56,7 @@ namespace IQMap
         ISqlQuery AddSort(string field, SortOrder order, SortPriority priority);
         ISqlQuery AddSort(string orderClause);
         ISqlQuery AddSort(string orderClause, SortPriority priority);
-        ISqlQuery Clone();
+
         string MapField(string fieldName);
         //string GetQuery();
         string SqlAuditString();
