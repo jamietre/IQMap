@@ -18,10 +18,8 @@ namespace IQMap
         /// </summary>
         /// <param name="query"></param>
         /// <returns></returns>
-        IDataReader RunQuery(IDbConnection connection, string query, 
-            IEnumerable<IDataParameter> parameters = null, 
-            int firstRow=-1, 
-            int lastRow=-1,
+        IDataReader RunQuery(IDbConnection connection, 
+            ISqlQuery query,
             IDbTransaction transaction = null,
             CommandBehavior commandBehavior = CommandBehavior.Default);
         
@@ -31,11 +29,8 @@ namespace IQMap
         /// <param name="query"></param>
         /// <param name="rows"></param>
         /// <returns></returns>
-        IDataReader RunQuery(IDbConnection connection, string query,
+        IDataReader RunQuery(IDbConnection connection, ISqlQuery query,
             out int rows,
-            IEnumerable<IDataParameter> parameters = null,
-            int firstRow = -1,
-            int lastRow = -1,
             IDbTransaction transaction = null,
             CommandBehavior commandBehavior = CommandBehavior.Default);
         /// <summary>
@@ -43,15 +38,22 @@ namespace IQMap
         /// </summary>
         /// <param name="query"></param>
         /// <returns></returns>
-        int Count(IDbConnection connection, string query, IEnumerable<IDataParameter> parameters = null,
+        //int Count(IDbConnection connection, 
+        //    string tableName,
+        //    string Where,
+        //    IEnumerable<IDataParameter> parameters,
+        //    CommandBehavior commandBehavior = CommandBehavior.Default);
+
+        int Count(IDbConnection connection,
+            ISqlQuery query,
+            IDbTransaction transaction = null,
             CommandBehavior commandBehavior = CommandBehavior.Default);
-        
         /// <summary>
         /// Run a query, and return the first numeric value of the first row, or records affected
         /// </summary>
         /// <param name="query"></param>
         /// <returns></returns>
-        int RunQueryScalar(IDbConnection connection, string query, IEnumerable<IDataParameter> parameters = null,
+        int RunQueryScalar(IDbConnection connection, ISqlQuery query,
             IDbTransaction transaction = null,
             CommandBehavior commandBehavior = CommandBehavior.Default);
         /// <summary>
@@ -61,15 +63,14 @@ namespace IQMap
         /// <param name="query"></param>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        int RunQueryInsert(IDbConnection connection, string query, IEnumerable<IDataParameter> parameters = null,
+        int RunQueryInsert(IDbConnection connection,
+            ISqlQuery query,
             IDbTransaction transaction = null,
             CommandBehavior commandBehavior = CommandBehavior.Default);
 
 
-        IDataReader RunStoredProcedure(IDbConnection connection, string spName,
-           IEnumerable<IDataParameter> parameters = null,
-           int firstRow = -1,
-           int totalRows = -1,
+        IDataReader RunStoredProcedure(IDbConnection connection,
+            ISqlQuery query,
            IDbTransaction transaction = null,
            CommandBehavior commandBehavior = CommandBehavior.Default);
         

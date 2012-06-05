@@ -6,10 +6,31 @@ using System.Data;
 
 namespace IQMap
 {
-    public interface IDataController
+    public interface IDataController: IDisposable
     {
         IDbConnection GetConnection(string connectionString);
 
+        IDbConnection Connection { get; set; }
+        IDbTransaction Transaction { get; set; }
+        IDataController BeginTransaction();
+        void CommitTransaction();
+        void RollbackTransaction();
+
+        /// <summary>
+        /// Return true if any records match the where criteria
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="where"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        //bool Any<T>(string where, params object[] parameters);
+        bool Any(string query, params object[] parameters);
+
+        IEnumerable<T> Where<T>(string where, params object[] parameters);
+        
+        IEnumerable<T> Select<T>(object query, params object[] parameters);
+        
+        
         /// <summary>
         /// Load a record expecting a single matching result
         /// </summary>
@@ -24,19 +45,22 @@ namespace IQMap
         /// Load a record, returning either the single matching value or the default
         /// </summary>
         /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
+        /// <returns></returns>
+        T SingleOrDefault<T>(object query, params object[] parameters);
+
+        /// <summary>
+        /// Returns a single matching record, or a new instance of T is none is found
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
         /// <param name="query"></param>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        T SingleOrDefault<T>(object query, params object[] parameters);
+        T SingleOrNew<T>(object query, params object[] parameters);
 
         /// <summary>
         /// Load a record expecting a single matching result
         /// </summary>
         /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
-        /// <param name="query"></param>
-        /// <param name="parameters"></param>
         /// <returns></returns>
         T First<T>(object query, params object[] parameters);
         /// <summary>
@@ -83,7 +107,7 @@ namespace IQMap
         /// </returns>
         bool TrySingle<T>(object query, T obj, params object[] parameters);
 
-        IEnumerable<T> Select<T>(object query, params object[] parameters);
+        
 
         /// <summary>
         /// Saves (inserts or updates) a record.
@@ -94,8 +118,8 @@ namespace IQMap
         /// query. An sql failure (e.g. couldn't be inserted) or any other problem 
         /// will cause an error to be thrown.
         /// </returns>
-        bool Save(object obj, params object[] parameters);
-
+        //bool Save(object obj, params object[] parameters);
+        //bool Save<T>(string table, string where, params object[] parameters);
         /// <summary>
         /// Delete record matching criteria
         /// </summary>
@@ -123,7 +147,7 @@ namespace IQMap
         IDataReader Query(string query, params object[] parameters);
         int QueryScalar(string query, params object[] parameters);
 
-        IEnumerable<T> RunStoredProcedure<T>(string spName, params object[] parameters);
+        //IEnumerable<T> RunStoredProcedure<T>(string spName, params object[] parameters);
        //int RunStoredProcedureScalar(string spName, params object[] parameters);
 
 

@@ -5,11 +5,11 @@ using System.Web;
 
 namespace IQMap
 {
-    [System.AttributeUsage(System.AttributeTargets.Property)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class IQField: Attribute 
     {
         public string SqlName;
-        public bool PK;
+        public bool PrimaryKey;
         /// <summary>
         /// When true, data will be loaded from the selection set, but never updated.
         /// </summary>

@@ -1,0 +1,1 @@
+Though it *looks* like it does, IQMap doesn't implement IQueryable where it should so you can't use the natural language constructs. Probably not too hard.

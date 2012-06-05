@@ -5,7 +5,12 @@ using System.Linq;
 using System.Web;
 using System.Data;
 using System.Reflection;
-using IQMap.Implementation;
+using System.Dynamic;
+using IQMap.Impl;
+using IQMap.SqlQueryBuilder;
+using IQMap.SqlQueryBuilder.Impl;
+using IQMap.Impl.Support;
+using IQObjectMapper;
 
 namespace IQMap
 {
@@ -13,10 +18,15 @@ namespace IQMap
     {
         static IQ()
         {
-            PopulateDbTypeMap();
+            // this may not work perfectly because we have no way to be sure this constructor happens before the cache is otherwise
+            // accessed. But worst case, the cache is just re-created once. The fix is to convert the ObjectMapper singleton to an instance
+            // class.
+
+            ObjectMapper.MapperCache = new MapperCache();
 
         }
         #region private properties
+
         private static IDbConnection _Connection;
         public static IDbConnection Connection
         {
@@ -35,8 +45,7 @@ namespace IQMap
             }
         }
         
-        private static ConcurrentDictionary<object, IDBObjectData> ObjectMetadata =
-            new ConcurrentDictionary<object, IDBObjectData>();
+      
         private static Config _Config;
         public static Config Config
         {
@@ -45,7 +54,6 @@ namespace IQMap
                 if (_Config == null)
                 {
                     _Config = new Config();
-                    _Config.GCTime += new EventHandler(_Config_GCTime);
                 }
                 return _Config;
             }
@@ -56,161 +64,125 @@ namespace IQMap
 
         #region public methods
 
-        private static void _Config_GCTime(object sender, EventArgs e)
+        public static IDbContext GetDbContext(params object[] options)
         {
-            foreach (KeyValuePair<object, IDBObjectData> kvps in ObjectMetadata)
-            {
-                if (kvps.Value.Orphaned)
-                {
-                    RemoveFromDict(kvps.Key);
-                }
-            }
+            return GetDbContextFromOptions(options);
         }
 
+        public static IQueryBuilder<T> From<T>(params object[] options) where T: class
+        {
+            OptionParser parser;
+            var query = GetQueryFromOptions<T>(out parser, options);
+            if (parser.NonOptionParametersOrNull != null)
+            {
+                throw new ArgumentException("Unexpected parameters were passed to From. Only <string,object[]> for a query+parameters, and options are permitted.");
+            }
+
+            return query;
+        }
+
+        public static IQueryBuilder<T> From<T>(string where, params object[] options) where T : class
+        {
+            OptionParser parser;
+            var query = GetQueryFromOptions<T>(out parser, options)
+                .Where(where,parser.NonOptionParameters);
+
+            return query;
+        }
+        public static IQueryBuilder<T> From<T>(int pkValue, params object[] options) where T : class
+        {
+            OptionParser parser;
+            var query = GetQueryFromOptions<T>(out parser, options)
+                .Where(pkValue)
+                .Options(parser.QueryOptions);
+                
+            return query;
+        }
         public static bool Save(object obj, params object[] options)
         {
-            return Config.DataController.Save(obj);
+            OptionParser parser;
+            var context = GetDbContextFromOptions(out parser,options);
+            return context.Save(obj,parser.QueryOptions);
         }
-
-        public static bool Save(object obj)
+        public static bool Delete(object obj, params object[] options)
         {
-     
-            bool result = Config.DataController.Save( obj);
-            return result;
+            OptionParser parser;
+            var context = GetDbContextFromOptions(out parser, options);
+            if (parser.NonOptionParameters.Length > 0)
+            {
+                throw new ArgumentException("Unknown options were passed to Delete.");
+            }
+            return context.Delete(obj, parser.QueryOptions);
         }
-
+        public static int Delete<T>(string where, params object[] parameters) where T : class
+        {
+            OptionParser parser;
+            var query = GetQueryFromOptions<T>(out parser, parameters)
+                .Where(where, parser.NonOptionParameters)
+                .Options(parser.QueryOptions);
+                
+            return query.Delete();
+        }
 
         /// <summary>
-        /// Load a record expecting a single matching result
+        /// Populate the instance obj from the record matching primaryKeyValue
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
-        /// <param name="query"></param>
-        /// <param name="parameters"></param>
+        /// <param name="primaryKeyValue"></param>
+        /// <param name="options"></param>
         /// <returns></returns>
-        public static T Single<T>(object query, params object[] parameters)
+        public static object Load(object obj, int primaryKeyValue,  params object[] parameters) 
         {
-     
-            return Config.DataController.Single<T>(query,parameters);
+            OptionParser parser;
+            return GetDbContextFromOptions(out parser, parameters)
+                .FromPrimaryKey(obj).Single();
+        }
+        public static IQuery<dynamic> From(string query, params object[] parameters)
+        {
+            OptionParser parser;
+            return GetDbContextFromOptions(out parser, parameters)
+                .From(query, parser.NonOptionParameters);
+        }
+        public static T Load<T>(string where, params object[] parameters) where T : class
+        {
+            return IQ.From<T>(where, parameters).Single();
         }
 
-        /// <summary>
-        /// Load a record, returning either the single matching value or the default
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
-        /// <param name="query"></param>
-        /// <param name="parameters"></param>
-        /// <returns></returns>
-        public static T SingleOrDefault<T>(object query, params object[] parameters)
+        public static T Load<T>(int primaryKeyValue, params object[] options) where T : class
         {
-            return Config.DataController.SingleOrDefault<T>(query, parameters);
+            return IQ.From<T>(primaryKeyValue,options).Single();
+        }
+       
+        public static IDataReader RunSql(string query, params object[] parameters)
+        {
+            OptionParser parser;
+            return GetDbContextFromOptions(out parser, parameters)
+                .RunSql(query, parser.NonOptionParameters);
         }
 
-        /// <summary>
-        /// Load a record expecting a single matching result
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
-        /// <param name="query"></param>
-        /// <param name="parameters"></param>
-        /// <returns></returns>
-        public static T First<T>(object query, params object[] parameters)
+        public static IEnumerable<T> Query<T>(string query, params object[] parameters)
         {
-            return Config.DataController.First<T>(query, parameters);
+            OptionParser parser;
+            return GetDbContextFromOptions(out parser, parameters)
+                .RunSql(query, parser.NonOptionParameters)
+                .MapAll<T>();
+
+  
+        }
+        public static IEnumerable<dynamic> Query(string where, params object[] parameters)
+        {
+            OptionParser parser;
+            var query = GetDbContextFromOptions(out parser, parameters)
+                .RunSql(where, parser.NonOptionParameters)
+                .MapAll<IDynamicMetaObjectProvider>();
+
+            return query;
         }
 
-        /// <summary>
-        /// Load a record, returning either the single matching value or the default
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
-        /// <param name="query"></param>
-        /// <param name="parameters"></param>
-        /// <returns></returns>
-        public static T FirstOrDefault<T>(object query, params object[] parameters)
-        {
-            return Config.DataController.FirstOrDefault<T>(query, parameters);
-
-        }
-        /// <summary>
-        /// Return the number of records matching the condition or query
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
-        /// <param name="query"></param>
-        /// <param name="parameters"></param>
-        /// <returns></returns>
-        public static int Count<T>(object query, params object[] parameters)
-        {
-            return Config.DataController.Count<T>(query, parameters);
-        }
-
-        /// <summary>
-        /// Try to load a single record for field/value combination. 
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="fieldName"></param>
-        /// <param name="value"></param>
-        /// <param name="obj"></param>
-        /// <returns>
-        /// If missing, return false. If more than one match is found, throw an exception.
-        /// </returns>
-        public static bool TrySingle<T>(out T obj, object query, params object[] parameters)
-        {
-            return Config.DataController.TrySingle<T>(query, out obj, parameters);
-        }
-        /// <summary>
-        /// Try to load a single record into an existing object
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="query"></param>
-        /// <param name="obj"></param>
-        /// <param name="parameters"></param>
-        /// <returns></returns>
-        public static bool TrySingle<T>(T obj, object query, params object[] parameters)
-        {
-            return Config.DataController.TrySingle<T>(query, obj, parameters);
-        }
-
-        public static IEnumerable<T> Select<T>(object query, params object[] parameters)
-        {
-            return Config.DataController.Select<T>(query, parameters);
-        }
-
-     
-        /// <summary>
-        /// Delete record matching criteria
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="connection"></param>
-        /// <param name="query"></param>
-        /// <param name="parameters"></param>
-        /// <returns></returns>
-        public static int Delete<T>(object query, params object[] parameters)
-        {
-            return Config.DataController.Delete<T>( query, parameters);
-        }
-
-        /// <summary>
-        /// Adds or updates a list of T objects 
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="foreignKey"></param>
-        /// <param name="fkValue"></param>
-        /// <param name="data"></param>
-        /// <param name="destructive"></param>
-        /// <returns></returns>
-        /// //
-        /// 
-
-        public static IDataReader Query(string query, params object[] parameters)
-        {
-            return Config.DataController.Query(query, parameters);
-        }
         public static int QueryScalar(string query, params object[] parameters)
         {
-            return Config.DataController.QueryScalar(query, parameters);
+            OptionParser parser;
+            return GetDbContextFromOptions(out parser, parameters)
+                .QueryScalar(query, parser.NonOptionParameters);
         }
 
         public static IEnumerable<T> RunStoredProcedure<T>(string spName, params object[] parameters)
@@ -220,137 +192,137 @@ namespace IQMap
         public static ISqlQuery GetQuery<T>(object query, params object[] parameters)
         {
             var wrapper = new SqlQueryParser<T>(QueryType.Select, query, parameters);
-            return wrapper.GetQuery();
+            return wrapper.QueryFull;
         }
-        
-     
+
+        /// <summary>
+        /// Start a new transaction and isolate the DataController from the default instance.
+        /// </summary>
+        /// <returns></returns>
+        public static IDbContext BeginTransaction()
+        {
+            return GetDbContext().BeginTransaction();
+        }
+
+        /// <summary>
+        /// Clears all cached class metadata
+        /// </summary>
+        public static void ClearCache()
+        {
+            MapperCache.ClearCache();
+
+        }
+
+
+        #endregion
 
         #region Utility methods
 
         /// <summary>
-        /// Copy the database bound properties of one object to another. If the target object is dirty, will throw
-        /// an error. 
+        /// Track changes to an object
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="source"></param>
-        /// <param name="destination"></param>
-        public static void CopyTo<T>(T source, T destination)
+        /// <param name="obj"></param>
+        public static void Track(object obj)
         {
-            CopyTo(source, destination);
+            IObjectData data = MapperCache.GetOrCreateObjectData(obj);
         }
-        /// <param name="destination"></param>
-        public static void CopyTo(object source, object destination)
+        /// <summary>
+        /// Zeroes out the primary key, disconnecting an item from the database
+        /// </summary>
+        /// <param name="obj"></param>
+        public static void Disconnect(object obj)
         {
-            DBData(source).CopyTo(destination);
+            MapperCache.GetClassInfo(obj.GetType()).PrimaryKeyField.SetValue(obj, 0);
         }
-        public static T Clone<T>(T source)
+        public static void IsNew(object obj)
         {
-            return (T)Clone(source);
+            IQMap.Impl.ClassInfo.IsNew(obj);
+
         }
-        public static object Clone(object source)
-        {
-            return DBData(source).Clone();
-        }
+
         #endregion
 
         #region metadata accessors
 
-        public static IDBClassInfo GetClassInfo<T>()
+        public static IClassInfo ClassInfo<T>()
         {
-            return GetClassInfo(typeof(T));
+            return ClassInfo(typeof(T));
         }
-        public static IDBClassInfo GetClassInfo(Type type)
+        public static IClassInfo ClassInfo(Type type)
         {
-            return DBObjectData.GetClassInfo(type);
+            return MapperCache.GetClassInfo(type,Config);
         }
-        public static IDBObjectData DBData(object obj)
+        public static IQueryOptions GetQueryOptions(string tableName = null, string primaryKey = null)
         {
-            IDBObjectData dbData;
-            if (ObjectMetadata.TryGetValue(obj, out dbData))
+            return new QueryOptions
             {
-                if (ReferenceEquals(dbData.Owner, obj))
-                {
-                    return dbData;
-                }
-            }
-            // Not found - must check everything in the DB since GetHashCode isn't guaranteeed to be unique or to stay the same
-            // There are probably ways to optimize this, in fact, it may not even be necessary, but it should be pretty
-            // inexpensive unless dealing with huge numbers of objects
-
-            foreach (KeyValuePair<object, IDBObjectData> kvps in ObjectMetadata)
-            {
-                if (ReferenceEquals(kvps.Value.Owner, obj))
-                {
-                    return kvps.Value;
-                }
-                else if (kvps.Value.Orphaned)
-                {
-                    RemoveFromDict(kvps.Key);
-                }
-            }
-
-            // Definitely not in the dictionary - create it
-
-
-            return CreateDBData(obj);
+                TableName = tableName,
+                PrimaryKey = primaryKey 
+            };
         }
-        public static IDBObjectData CreateDBData(object obj)
+        public static MapperCache MapperCache
         {
-            if (obj is IDictionary<string, object>)
+            get
             {
-                return null;
+                return (MapperCache)ObjectMapper.MapperCache;
             }
-            IDBObjectData newObjectData = new DBObjectData(obj);
-            ObjectMetadata[obj] = newObjectData;
-            return newObjectData;
         }
 
         #endregion
+        
+        #region private methods
+        /// <summary>
+        /// Return basic DB context info from option list, or default if not available
+        /// </summary>
+        internal static IDbContext GetDbContextFromOptions(params object[] options)
+        {
+           OptionParser  remaining;
+           var context= GetDbContextFromOptions(out remaining, options);
+           if (remaining.QueryOptions != null || remaining.NonOptionParametersOrNull != null)
+           {
+               throw new ArgumentException("There were non-applicable options passed when creating a DbContext.");
+           }
+           return context;
+        }
+        internal static DbContext GetDbContextFromOptions(out OptionParser parser, params object[] options)
+        {
+
+            parser = new OptionParser(options);
+            var context = new DbContext(parser.DataStorageController, parser.Connection, parser.Transaction, parser.CommandOptions,
+                parser.Buffering, parser.Reconnect);
+            return context;
+        }
+
+        internal static QueryBuilder<T> GetQueryFromOptions<T>(out OptionParser parser, params object[] options) where T: class
+        {
+            var context = GetDbContextFromOptions(out parser, options);
+            parser = new OptionParser(options);
+
+            var query = new QueryBuilder<T>(context, parser.QueryOptions);
+            return query;
+        }
+        internal static QueryBuilder<object> GetQueryFromOptions(object source, out OptionParser parser, params object[] options)
+        {
+            var context = GetDbContextFromOptions(out parser, options);
+            parser = new OptionParser(options);
+
+            var query = new QueryBuilder<object>(context,source,parser.QueryOptions);
+            return query;
+        }
+
 
         internal static ISqlQuery CreateQuery()
         {
             return CreateQuery(QueryType.Select);
         }
-        internal static ISqlQuery CreateQuery(QueryType queryType)
+        internal static SqlQueryMaker CreateQuery(QueryType queryType)
         {
-            SqlQuery query = new SqlQuery(queryType);
-            query.OptimizeParameterNames = Config.OptimizeParameterNames;
+            var query = new SqlQueryMaker(queryType);
             return query;
-        }
-        #endregion 
-
-       
-
-        #region private methods
-
-
-        private static void PopulateDbTypeMap()
-        {
-            
-            Config.DbTypeMap = new Dictionary<Type, DbType>();
-            var typeMap = Config.DbTypeMap;
-            typeMap[typeof(bool)] = DbType.Boolean;
-            typeMap[typeof(string)] = DbType.String;
-            typeMap[typeof(double)] = DbType.Double;
-            typeMap[typeof(decimal)] = DbType.Decimal;
-            typeMap[typeof(float)] = DbType.Single;
-            typeMap[typeof(int)] = DbType.Int32;
-            typeMap[typeof(long)] = DbType.Int64;
-            typeMap[typeof(short)] = DbType.Int16;
-            typeMap[typeof(ulong)] = DbType.UInt64;
-            typeMap[typeof(uint)] = DbType.UInt32;
-            typeMap[typeof(ushort)] = DbType.UInt16;
-            typeMap[typeof(DateTime)] = DbType.DateTime;
-            typeMap[typeof(Guid)] = DbType.Guid;
-            typeMap[typeof(byte[])] = DbType.Binary;
-        }
-       
-        private static void RemoveFromDict(object obj)
-        {
-            IDBObjectData removed;
-            ObjectMetadata.TryRemove(obj, out removed);
         }
 
         #endregion
+
+        
     }
 }

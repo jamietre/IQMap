@@ -12,10 +12,10 @@
     <AssemblyName>IQMap</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <SccProjectName>SAK</SccProjectName>
-    <SccLocalPath>SAK</SccLocalPath>
-    <SccAuxPath>SAK</SccAuxPath>
-    <SccProvider>SAK</SccProvider>
+    <SccProjectName>Svn</SccProjectName>
+    <SccLocalPath>Svn</SccLocalPath>
+    <SccAuxPath>Svn</SccAuxPath>
+    <SccProvider>SubversionScc</SccProvider>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -51,8 +51,13 @@
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="IQObjectMapper, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>redist\IQObjectMapper.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Data.SqlServerCe, Version=3.5.1.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91, processorArchitecture=MSIL" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -60,57 +65,181 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AttributesEnums\Buffered.cs" />
+    <Compile Include="AttributesEnums\DbCaching.cs" />
+    <Compile Include="AttributesEnums\DbReconnect.cs" />
+    <Compile Include="AttributesEnums\DbBuffering.cs" />
+    <Compile Include="AttributesEnums\DbCommandOptions.cs" />
+    <Compile Include="AttributesEnums\IQEventType.cs" />
     <Compile Include="AttributesEnums\SqlDirectiveType.cs" />
-    <Compile Include="AttributesEnums\IQConstructor.cs" />
     <Compile Include="AttributesEnums\IQPrimaryKey.cs" />
-    <Compile Include="AttributesEnums\IQEventHandler.cs" />
     <Compile Include="AttributesEnums\IQIgnore.cs" />
-    <Compile Include="AttributesEnums\SqlQuery.cs" />
+    <Compile Include="ExtensionMethods\SqlQueryMaker.cs" />
+    <Compile Include="Impl\ClassInfoBuilder.cs" />
+    <Compile Include="Impl\ClassInfoData.cs" />
+    <Compile Include="Impl\EngineSpecific\SQLCompactEditionController.cs" />
+    <Compile Include="Impl\MapperCache.cs" />
+    <Compile Include="Impl\QueryBuilderT.cs" />
+    <Compile Include="Impl\Query.cs" />
+    <Compile Include="Impl\IOptionParser.cs" />
+    <Compile Include="Impl\QueryOptions.cs" />
+    <Compile Include="Impl\IDbContextData.cs" />
+    <Compile Include="Impl\OptionParser.cs" />
+    <Compile Include="ExtensionMethods\IQueryBuilderExtensionMethods.cs" />
+    <Compile Include="IClassInfoConstructor.cs" />
+    <Compile Include="Impl\ClassInfo.cs" />
+    <Compile Include="Impl\EventData.cs" />
+    <Compile Include="Impl\DbContext.cs" />
+    <Compile Include="Impl\QueryProvider.cs" />
+    <Compile Include="Impl\Support\IQueryEnumerator.cs" />
+    <Compile Include="Impl\Support\LazyReadOnlyCollection.cs" />
+    <Compile Include="Impl\Support\QueryEnumerator_Dictionary.cs" />
+    <Compile Include="Impl\Support\TemporaryField.cs" />
+    <Compile Include="IEventData.cs" />
+    <Compile Include="Impl\TypedQuery.cs" />
+    <Compile Include="IOptions.cs" />
+    <Compile Include="IQBoundObject.cs" />
+    <Compile Include="IDbContext.cs" />
+    <Compile Include="IQuery.cs" />
+    <Compile Include="IQueryBuilder.cs" />
+    <Compile Include="IQueryBuilderT.cs" />
+    <Compile Include="IQueryOptions.cs" />
+    <Compile Include="IQueryT.cs" />
+    <Compile Include="IReflectionOptions.cs" />
+    <Compile Include="QueryBuilder.cs" />
+    <Compile Include="QueryCache\ICacheItem.cs" />
+    <Compile Include="QueryCache\ICacheKey.cs" />
+    <Compile Include="QueryCache\Impl\CachedDataReader.cs" />
+    <Compile Include="QueryCache\Impl\CachedDataRecord.cs" />
+    <Compile Include="QueryCache\Impl\CacheItem.cs" />
+    <Compile Include="QueryCache\Impl\CacheKey.cs" />
     <Compile Include="Exceptions\IQMissingQueryException.cs" />
     <Compile Include="Exceptions\IQException.cs" />
     <Compile Include="ExtensionMethods\IDbConnectionExtensions.cs" />
     <Compile Include="ExtensionMethods\IDataReaderExtensions.cs" />
-    <Compile Include="IDBClassInfo.cs" />
-    <Compile Include="IDBFieldInfo.cs" />
-    <Compile Include="Implementation\ParameterParser.cs" />
+    <Compile Include="ExtensionMethods\IEnumerableExtensions.cs" />
+    <Compile Include="IClassInfo.cs" />
+    <Compile Include="IDelegateInfo.cs" />
+    <Compile Include="Impl\Support\LocalStringComparer.cs" />
+    <Compile Include="Impl\Support\ParameterParser.cs" />
     <Compile Include="IQObject.cs" />
-    <Compile Include="Implementation\Config.cs" />
-    <Compile Include="Implementation\EngineSpecific\MSSQLDataStorageController.cs" />
-    <Compile Include="Implementation\SqlQueryParser.cs" />
-    <Compile Include="IQClassData.cs" />
-    <Compile Include="Implementation\QueryParameter.cs" />
+    <Compile Include="Impl\Config.cs" />
+    <Compile Include="Impl\EngineSpecific\MSSQLDataStorageController.cs" />
+    <Compile Include="Impl\Support\SqlQueryParser.cs" />
     <Compile Include="IQ.cs" />
-    <Compile Include="Implementation\DBClassInfo.cs" />
     <Compile Include="AttributesEnums\IQField.cs" />
-    <Compile Include="Implementation\DBFieldInfo.cs" />
+    <Compile Include="Impl\DelegateInfoT.cs" />
     <Compile Include="AttributesEnums\IQClass.cs" />
-    <Compile Include="Implementation\DBObjectData.cs" />
-    <Compile Include="IDataController.cs" />
+    <Compile Include="Impl\DbObjectData.cs" />
     <Compile Include="IDataStorageController.cs" />
-    <Compile Include="IDBObjectData.cs" />
+    <Compile Include="IObjectData.cs" />
     <Compile Include="ExtensionMethods\IQObjectExtensions.cs" />
-    <Compile Include="Implementation\ParameterWhereCriterion.cs" />
-    <Compile Include="Implementation\EngineSpecific\SortCriterion.cs" />
-    <Compile Include="Implementation\SqlDataStorageController.cs" />
-    <Compile Include="Implementation\SqlFieldMap.cs" />
-    <Compile Include="Implementation\SqlQuery.cs" />
-    <Compile Include="Implementation\SqlValue.cs" />
-    <Compile Include="Implementation\WhereClause.cs" />
-    <Compile Include="Implementation\WhereCriterion.cs" />
-    <Compile Include="Implementation\WhereString.cs" />
-    <Compile Include="IQuery.cs" />
-    <Compile Include="ISqlFieldMap.cs" />
-    <Compile Include="ISqlQuery.cs" />
-    <Compile Include="IWhereClause.cs" />
-    <Compile Include="IWhereClauseComponent.cs" />
-    <Compile Include="IWhereCriterion.cs" />
+    <Compile Include="Impl\QueryT.cs" />
+    <Compile Include="Impl\Support\QueryEnumerator.cs" />
+    <Compile Include="Impl\SqlDataStorageController.cs" />
+    <Compile Include="QueryCache\Impl\CachedDataReaderView.cs" />
+    <Compile Include="SqlQueryMaker\Impl\SelectClause.cs" />
+    <Compile Include="SqlQueryMaker\Impl\SelectItem.cs" />
+    <Compile Include="SqlQueryMaker\ISelect.cs" />
+    <Compile Include="SqlQueryMaker\ISelectClause.cs" />
+    <Compile Include="SqlQueryMaker\ISelectItem.cs" />
+    <Compile Include="SqlQueryMaker\ISqlQuery.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Implementation\SqlDataController.cs" />
-    <Compile Include="Implementation\SqlQueryRaw.cs" />
-    <Compile Include="AttributesEnums\SqlQueryType.cs" />
-    <Compile Include="Utils.cs" />
+    <Compile Include="ExtensionMethods\ExtensionMethods.cs" />
+    <Compile Include="QueryCache\SqlQueryBuilderConfig.cs" />
+    <Compile Include="SqlQueryMaker\AttributesEnums\enumQueryType.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\AttributesEnums\enumSqlDataFormat.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="AttributesEnums\QueryBuilderEnums.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\OrderByClause.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\OrderByItem.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\ParameterComparer.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\ParameterCollection.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\QueryParameter.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\SqlFieldMap.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\SqlQueryMaker.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\SqlQueryDef.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\SqlQueryUtility.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\SqlValue.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\SqlValueParm.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\UpdateClause.cs" />
+    <Compile Include="SqlQueryMaker\Impl\WhereClause.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\WhereItem.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\Impl\WhereString.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\IOrderBy.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\IOrderByClause.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\IOrderByItem.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\IParameterCollection.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\ISqlClause.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\ISqlFieldMap.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\ISqlQueryMaker.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\ISqlValue.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\IUpdateClause.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\IWhere.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\IWhereClause.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="SqlQueryMaker\IWhereItem.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Content Include="_TODO\Wrapping ObjectMapper.txt" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

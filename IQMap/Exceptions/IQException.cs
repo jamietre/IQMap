@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace IQMap.Implementation
+namespace IQMap.Impl
 {
     public class IQException: Exception
     {

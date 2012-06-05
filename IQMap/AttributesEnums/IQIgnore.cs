@@ -5,7 +5,7 @@ using System.Web;
 
 namespace IQMap
 {
-    [System.AttributeUsage(System.AttributeTargets.Property)]
+ [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class IQIgnore: Attribute 
     {
     }

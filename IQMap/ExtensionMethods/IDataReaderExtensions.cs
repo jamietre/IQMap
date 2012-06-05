@@ -1,25 +1,31 @@
 ﻿using System;
+using System.Collections.Specialized;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Data;
 using System.Dynamic;
-using IQMap.Implementation;
-
+using IQObjectMapper.Adapters;
 
 namespace IQMap
 {
+    /// <summary>
+    /// Methods for mapping directly from an IDataReader to a poco object. These should mostly mirror the methods
+    /// in IEnumerableVKPExtensions just by wrapping each datareater 
+    /// </summary>
     public static class IDataReaderExtensionMethods
     {
+        
+
         public static T MapFirst<T>(this IDataReader reader)
         {
-            return MapNext<T>(reader,true);
+            return MapNext<T>(reader, true);
         }
         public static bool MapFirst(this IDataReader reader, object obj)
         {
-            IDataReader result =  MapNext(reader,obj);
-            if (result!=null)
+            IDataReader result = MapNext(reader, obj);
+            if (result != null)
             {
                 reader.Close();
             }
@@ -33,16 +39,16 @@ namespace IQMap
         /// <param name="closeDataReader">When true (default), the datareader is closed after mapping is finished. Set to false
         /// to read further data.</param>
         /// <returns></returns>
-        public static T MapNext<T>(this IDataReader reader, bool closeDataReader=true) 
+        public static T MapNext<T>(this IDataReader reader, bool closeDataReader = true)
         {
             T result;
             if (reader.Read())
             {
-                result= Map<T>(reader);
+                result = ((IDataRecord)reader).Map<T>();
             }
             else
             {
-                result= default(T);
+                result = default(T);
             }
             if (closeDataReader)
             {
@@ -62,7 +68,7 @@ namespace IQMap
         {
             if (reader.IsClosed)
             {
-                throw new Exception("The datareader is closed.");
+                throw new InvalidOperationException("The datareader is closed.");
             }
 
             bool result = reader.Read();
@@ -80,68 +86,22 @@ namespace IQMap
         /// <typeparam name="T"></typeparam>
         /// <param name="reader"></param>
         /// <returns></returns>
-        public static T Map<T>(this IDataRecord reader)
+        public static T Map<T>(this IDataRecord record)
         {
-            T obj = Utils.GetInstanceOf<T>();
+            var wrapper = new DataRecordAdapter(record);
+            return wrapper.Map<T>();
 
-            if (Utils.IsMappableType<T>())
-            {
-                obj = (T)ChangeType(reader[0], typeof(T));
-            }
-            else
-            {
-                Map(reader, obj);
-            }
-            
-            return obj;
         }
-        
         /// <summary>
         /// Map to a data record.
         /// </summary>
         /// <param name="reader"></param>
         /// <param name="obj"></param>
-        public static void Map(this IDataRecord reader,object obj)
+        public static void Map(this IDataRecord record, object obj)
         {
-            Type t = Utils.GetUnderlyingType(obj.GetType());
-            if (t.IsValueType || t == typeof(string))
-            {
-                throw new Exception("You can't map to a value type. You can, however, return new value types using Map<T>. Try that instead.");
-            }
-            bool isDict = obj is IDictionary<string, object>;
-            IDBObjectData dbData=null;
-            IDBClassInfo info=null;
-           
-            IDictionary<string,object> dict=null;
+            var wrapper = new DataRecordAdapter(record);
+            wrapper.Map(obj);
 
-            if (isDict)
-            {
-                dict = (IDictionary<string, object>)obj;
-            }
-            else
-            {
-                dbData = IQ.DBData(obj);
-                info = dbData.ClassInfo;
-            }
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                string name = reader.GetName(i);
-                if (isDict)
-                {
-                    dict[name] = reader[i];
-                }
-                else
-                {
-                    if (info.FieldIndex(name) >= 0)
-                    {
-                        SetFieldFromSqlObject(dbData, name, reader[i]);
-                    }
-                }
-            }
-            if (!isDict)
-            {
-                dbData.Clean();
-            }
         }
         /// <summary>
         /// Map all data in the reader to new objects of type T. When buffered, the reader is disposed of after finishing.
@@ -151,106 +111,37 @@ namespace IQMap
         /// <param name="reader"></param>
         /// <param name="buffered"></param>
         /// <returns></returns>
-        public static IEnumerable<T> MapAll<T>(this IDataReader reader, bool buffered=true) 
+        public static IEnumerable<T> MapAll<T>(this IDataReader reader, bool buffered = true)
         {
+            var enumerated = EnumerateReader<T>(reader);
             if (!buffered)
             {
-                return EnumerateReader<T>(reader);
+                return enumerated;
             }
             else
             {
                 List<T> list = new List<T>();
-
-                while (reader.Read())
+                foreach (var item in enumerated)
                 {
-                    list.Add(Map<T>(reader));
+                    list.Add(item);
                 }
                 reader.Dispose();
                 return list;
             }
         }
+
+        #region private methods
+
         private static IEnumerable<T> EnumerateReader<T>(IDataReader reader)
         {
-            while (reader.Read())
+            var wrapper = new DataReaderAdapter(reader);
+            foreach (var item in wrapper)
             {
-                yield return Map<T>(reader);
+                yield return item.Map<T>();
             }
             reader.Dispose();
         }
-        #region private methods
 
-        private static void SetFieldFromSqlObject(IDBObjectData dbData, string field, object dataObject)
-        {
-
-            IDBFieldInfo info;
-            object obj = dbData.Owner;
-            if (dbData.ClassInfo.TryGetFieldInfo(field, out info))
-            {
-                if (dataObject == System.DBNull.Value || dataObject==null)
-                {
-                    if (info.IsNullable)
-                    {
-                        info.SetValue(obj, null);
-                    }
-                    else if (info.IgnoreNull)
-                    {
-                        info.SetValue(obj, Utils.DefaultValue(info.Type));
-                    }
-                    else
-                    {
-                        throw new Exception("Can't assign null value in database for field '" + info.Name + "'.");
-                    }
-                }
-                else
-                {
-                    info.SetValue(obj, ChangeType(dataObject, info.Type));
-                }
-            }
-        }
-        /// <summary>
-        /// Change an object to another type accounting for nullable types and enums
-        /// </summary>
-        /// <param name="value"></param>
-        /// <param name="conversionType"></param>
-        /// <returns></returns>
-        private static object ChangeType(object value, Type conversionType)
-        {
-            if (conversionType.IsGenericType &&
-                conversionType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
-            {
-
-                if (value == null)
-                    return null;
-
-                System.ComponentModel.NullableConverter nullableConverter
-                    = new System.ComponentModel.NullableConverter(conversionType);
-
-                conversionType = nullableConverter.UnderlyingType;
-            }
-
-            if (conversionType.IsEnum)
-            {
-                return ChangeToEnumType(value, conversionType);
-            }
-            else
-            {
-                return Convert.ChangeType(value, conversionType);
-            }
-        }
-
-        private static object ChangeToEnumType(object value, Type type)
-        {
-            if (value is string)
-            {
-                return Enum.Parse(type, value as string);
-            }
-            else
-            {
-                //long enumValue = (int)value;
-                return Enum.ToObject(type, value);
-
-            }
-        }
         #endregion
 
     }
